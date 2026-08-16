@@ -1,3 +1,6 @@
+import '../services/api_service.dart';
+import 'login_screen.dart';
+import 'property_detail_screen.dart';
 import 'package:flutter/material.dart';
 import '../models/property_model.dart';
 import '../services/property_service.dart';
@@ -21,7 +24,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("NicePlace")),
+      appBar: AppBar(
+        title: const Text("NicePlace"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: "Logout",
+            onPressed: () async {
+              await ApiService.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+        ],
+      ),
       body: FutureBuilder<List<Property>>(
         future: _propertiesFuture,
         builder: (context, snapshot) {
@@ -53,6 +74,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   title: Text(property.title),
                   subtitle: Text("${property.locality}, ${property.city}\n₹${property.price}"),
                   isThreeLine: true,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => PropertyDetailScreen(property: property)),
+                    );
+                  },
                 ),
               );
             },

@@ -1,6 +1,7 @@
+import 'register_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import 'home_screen.dart';
+import 'main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const MainScreen()),
         );
       }
     } else {
@@ -89,6 +90,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: const Text("Login"),
                   ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                );
+              },
+              child: const Text("Naya account banao? Register karein"),
+            ),
           ],
         ),
       ),
