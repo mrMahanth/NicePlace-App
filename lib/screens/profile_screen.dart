@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
+import 'inquiries_list_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -9,21 +10,42 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Profile")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircleAvatar(
-              radius: 50,
-              child: Icon(Icons.person, size: 50),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "Aapka Profile",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
+      body: Column(
+        children: [
+          const SizedBox(height: 24),
+          const CircleAvatar(
+            radius: 50,
+            child: Icon(Icons.person, size: 50),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "Aapka Profile",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 32),
+
+          // NAYA OPTION: Messages
+          ListTile(
+            leading: const Text("💬", style: TextStyle(fontSize: 22)),
+            title: const Text("Messages"),
+            subtitle: const Text("Aapki inquiries aur replies"),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InquiriesListScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+
+          const Spacer(),
+
+          Padding(
+            padding: const EdgeInsets.only(bottom: 32),
+            child: ElevatedButton.icon(
               icon: const Icon(Icons.logout),
               label: const Text("Logout"),
               style: ElevatedButton.styleFrom(
@@ -42,8 +64,8 @@ class ProfileScreen extends StatelessWidget {
                 }
               },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -55,6 +55,40 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("access_token");
   }
+  // ---------- TOKEN SE LOGGED-IN USER KA ID NIKALNA ----------
+  static Future<int?> getCurrentUserId() async {
+    final token = await getAccessToken();
+    if (token == null) return null;
+
+    final parts = token.split('.');
+    if (parts.length != 3) return null; // valid JWT mein 3 parts hote hain
+
+    try {
+      final payload = _decodeBase64(parts[1]);
+      final data = jsonDecode(payload);
+      return data['user_id'];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // JWT ke middle part (payload) ko decode karne ke liye helper
+  static String _decodeBase64(String str) {
+    String output = str.replaceAll('-', '+').replaceAll('_', '/');
+    switch (output.length % 4) {
+      case 0:
+        break;
+      case 2:
+        output += '==';
+        break;
+      case 3:
+        output += '=';
+        break;
+      default:
+        throw Exception('Invalid token format');
+    }
+    return utf8.decode(base64Url.decode(output));
+  }
   // ---------- LOGOUT ----------
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
