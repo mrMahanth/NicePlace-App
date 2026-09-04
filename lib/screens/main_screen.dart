@@ -11,11 +11,23 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  late final List<Widget> _screens;
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    ProfileScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      const HomeScreen(),
+      ProfileScreen(onLoggedOut: _handleLoggedOut),
+    ];
+  }
+
+  void _handleLoggedOut() {
+    setState(() => _selectedIndex = 0); // switch to Home tab
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("You are logged out successfully")),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

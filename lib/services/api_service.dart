@@ -89,6 +89,137 @@ class ApiService {
     }
     return utf8.decode(base64Url.decode(output));
   }
+
+  // ---------- OTP REQUEST ----------
+  // Tries 'login' first; if the phone isn't registered yet, automatically
+  // retries with 'register' so the user doesn't need to know which one applies.
+  static Future<Map<String, dynamic>> requestOtp(String phone) async {
+    final loginAttempt = await _requestOtpWithPurpose(phone, 'login');
+    if (loginAttempt["success"] == true) {
+      return loginAttempt;
+    }
+
+    // If login failed because the number isn't registered, try register purpose
+    final errorText = loginAttempt["error"]?.toString() ?? '';
+    if (errorText.contains("No account found")) {
+      return await _requestOtpWithPurpose(phone, 'register');
+    }
+
+    return loginAttempt;
+  }
+
+  static Future<Map<String, dynamic>> _requestOtpWithPurpose(
+      String phone, String purpose) async {
+    final url = Uri.parse("$baseUrl/auth/otp/request/");
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"phone": phone, "purpose": purpose}),
+    );
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      final body = jsonDecode(response.body);
+      return {"success": false, "error": body["error"] ?? "Could not send OTP."};
+    }
+  }
+
+  // ---------- OTP VERIFY ----------
+  static Future<Map<String, dynamic>> verifyOtp(String phone, String code) async {
+    final url = Uri.parse("$baseUrl/auth/otp/verify/");
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"phone": phone, "code": code}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("access_token", data["access"]);
+      await prefs.setString("refresh_token", data["refresh"]);
+
+      return {"success": true, "data": data};
+    } else {
+      final body = jsonDecode(response.body);
+      return {"success": false, "error": body["error"] ?? "Invalid OTP."};
+    }
+  }
+
+  // ---------- TOKEN REFRESH (handles 15-min access token expiry) ----------
+  // Prevents multiple simultaneous refresh calls if several API requests
+  // fail at the same time - they all wait for the same refresh attempt.
+  static Future<bool>? _refreshInProgress;
+
+  static Future<bool> _refreshAccessToken() async {
+    _refreshInProgress ??= _performRefresh();
+    final result = await _refreshInProgress!;
+    _refreshInProgress = null;
+    return result;
+  }
+
+  static Future<bool> _performRefresh() async {
+    final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString("refresh_token");
+    if (refreshToken == null) return false;
+
+    try {
+      final url = Uri.parse("$baseUrl/auth/login/refresh/");
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"refresh": refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await prefs.setString("access_token", data["access"]);
+        // ROTATE_REFRESH_TOKENS is on - a new refresh token is issued each
+        // time, and the old one is blacklisted. Must save the new one.
+        if (data["refresh"] != null) {
+          await prefs.setString("refresh_token", data["refresh"]);
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ---------- AUTHORIZED REQUEST WRAPPER ----------
+  // Wraps any authenticated API call. If it fails with 401 (expired token),
+  // automatically refreshes and retries once. Use this instead of manually
+  // fetching the token in every service function.
+  static Future<http.Response> authorizedRequest(
+    Future<http.Response> Function(String token) requestFn,
+  ) async {
+    final token = await getAccessToken();
+    if (token == null) {
+      throw Exception("Login required");
+    }
+
+    http.Response response = await requestFn(token);
+
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        final newToken = await getAccessToken();
+        response = await requestFn(newToken!);
+      } else {
+        // Refresh token itself expired/invalid (e.g. after 90 days) -
+        // nothing more we can do, clear local tokens.
+        await logout();
+      }
+    }
+
+    return response;
+  }
+
   // ---------- LOGOUT ----------
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import 'login_screen.dart';
+import '../widgets/phone_input_field.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,10 +10,13 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _password2Controller = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -25,10 +28,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     final result = await ApiService.register({
+      "first_name": _firstNameController.text.trim(),
+      "last_name": _lastNameController.text.trim(),
       "username": _usernameController.text.trim(),
       "email": _emailController.text.trim(),
       "phone": _phoneController.text.trim(),
       "password": _passwordController.text.trim(),
+      "password2": _password2Controller.text.trim(),
     });
 
     setState(() {
@@ -36,14 +42,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     if (result["success"] == true) {
+      // Registration successful - log the user in automatically, then go back
+      final loginResult = await ApiService.login(
+        _usernameController.text.trim(),
+        _passwordController.text.trim(),
+      );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Registration successful! Please login.")),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
+        if (loginResult["success"] == true) {
+          Navigator.pop(context, true); // signal success to Login screen
+        } else {
+          // Registered but auto-login failed - still let them know it worked
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Registration successful! Please login.")),
+          );
+          Navigator.pop(context, false);
+        }
       }
     } else {
       setState(() {
@@ -62,6 +76,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(labelText: "First Name", border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(labelText: "Last Name", border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
               controller: _usernameController,
               decoration: const InputDecoration(labelText: "Username", border: OutlineInputBorder()),
             ),
@@ -72,16 +96,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: "Phone", border: OutlineInputBorder()),
-            ),
+            PhoneInputField(controller: _phoneController),
             const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
               obscureText: true,
               decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _password2Controller,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: "Confirm Password", border: OutlineInputBorder()),
             ),
             const SizedBox(height: 24),
             if (_errorMessage != null)

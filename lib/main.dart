@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
+import 'screens/main_screen.dart';
+import 'theme/app_theme.dart';
+import 'splash_screen.dart';
 
 void main() {
   runApp(const NicePlaceApp());
@@ -13,11 +15,8 @@ class NicePlaceApp extends StatelessWidget {
     return MaterialApp(
       title: 'NicePlace',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
-      home: const LoginScreen(),
+      theme: AppTheme.lightTheme,
+      home: const SplashScreen(),
     );
   }
 }
