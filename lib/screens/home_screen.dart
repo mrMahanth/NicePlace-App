@@ -1,14 +1,16 @@
 import 'property_detail_screen.dart';
 import 'notifications_list_screen.dart';
-import 'property_filter_sheet.dart';
 import 'profile_screen.dart'; // TODO: fix this path/class name if yours differs
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/property_model.dart';
 import '../services/property_service.dart';
 import '../services/notification_service.dart';
 import '../services/location_helper.dart';
 import '../utils/auth_guard.dart';
 import '../theme/app_theme.dart';
+import '../widgets/animated_hint_search_field.dart';
+import '../widgets/inline_filter_panel.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +25,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final TextEditingController _searchController = TextEditingController();
 
+  static const List<String> _searchHints = [
+    'Find Flats...',
+    'Find Plots...',
+    'Find Space for Office...',
+    'Find ATM and Banks...',
+  ];
+
   String? _city;
   int? _propertyTypeId;
   String? _listingType;
@@ -33,6 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _locationCity;
   String? _locationLocality;
   bool _locationLoading = false;
+
+  bool _showFilterPanel = false;
 
   @override
   void initState() {
@@ -104,32 +115,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _openFilterSheet() async {
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => PropertyFilterSheet(
-        initialCity: _city,
-        initialPropertyTypeId: _propertyTypeId,
-        initialListingType: _listingType,
-        initialMinPrice: _minPrice,
-        initialMaxPrice: _maxPrice,
-      ),
-    );
-
-    if (result != null) {
-      setState(() {
-        _city = (result['city'] as String?)?.isEmpty ?? true ? null : result['city'];
-        _propertyTypeId = result['propertyTypeId'];
-        _listingType = result['listingType'];
-        _minPrice = result['minPrice'];
-        _maxPrice = result['maxPrice'];
-      });
-      _loadProperties();
-    }
+  void _applyInlineFilters(Map<String, dynamic> result) {
+    setState(() {
+      _city = (result['city'] as String?)?.isEmpty ?? true ? null : result['city'];
+      _propertyTypeId = result['propertyTypeId'];
+      _listingType = result['listingType'];
+      _minPrice = result['minPrice'];
+      _maxPrice = result['maxPrice'];
+      _showFilterPanel = false;
+    });
+    _loadProperties();
   }
 
   bool get _hasActiveFilters =>
@@ -142,8 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // The slide-in panel from the right. Flutter opens this automatically
-      // whenever something calls Scaffold.of(context).openEndDrawer().
+      // The slide-in panel from the right.
       endDrawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.85,
         child: const ProfileScreen(),
@@ -155,7 +149,6 @@ class _HomeScreenState extends State<HomeScreen> {
         titleSpacing: 12,
         title: Row(
           children: [
-            // Logo in a white pill badge, matching the website header
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -163,12 +156,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Image.asset(
-                'assets/images/real_logo_appbar_240.png',
+                'assets/images/home-screen-logo-240.png',
                 height: 34,
               ),
             ),
             const SizedBox(width: 10),
-            // Tappable current-location display
             Expanded(
               child: InkWell(
                 onTap: _locationLoading ? null : _refreshLocation,
@@ -240,80 +232,99 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: "Search properties...",
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
-                    onSubmitted: (_) => _loadProperties(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Stack(
-                  children: [
-                    IconButton.filled(
-                      icon: const Icon(Icons.filter_list),
-                      onPressed: _openFilterSheet,
-                    ),
-                    if (_hasActiveFilters)
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        cacheExtent: 500, // pre-renders items just outside the screen for smoother scroll
+        slivers: [
+          // The search strip. floating: true + snap: true gives the
+          // "hide while scrolling down through the list, reappear instantly
+          // when scrolling back up" behavior, independent of the AppBar
+          // above (which stays pinned since it's the Scaffold's own appBar).
+          SliverAppBar(
+            backgroundColor: AppColors.searchStripBackground,
+            pinned: false,
+            floating: true,
+            snap: true,
+            elevation: 0,
+            toolbarHeight: 70,
+            automaticallyImplyLeading: false,
+            actions: const [SizedBox.shrink()], // non-empty but invisible - reliably blocks the automatic endDrawer icon
+            titleSpacing: 12,
+            title: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: AnimatedHintSearchField(
+                controller: _searchController,
+                hints: _searchHints,
+                onSubmitted: (_) => _loadProperties(),
+                onFilterTap: () => setState(() => _showFilterPanel = !_showFilterPanel),
+                hasActiveFilters: _hasActiveFilters,
+                onFocusChanged: (focused) {
+                  if (focused) setState(() => _showFilterPanel = true);
+                },
+              ),
             ),
           ),
-          Expanded(
-            child: FutureBuilder<List<Property>>(
-              future: _propertiesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text("Error: ${snapshot.error}"));
-                }
-                final properties = snapshot.data ?? [];
-                if (properties.isEmpty) {
-                  return const Center(
+          // The attached filter panel - appears/disappears with a smooth
+          // height animation, pushing the property list down while open.
+          SliverToBoxAdapter(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              child: _showFilterPanel
+                  ? InlineFilterPanel(
+                      initialCity: _city,
+                      initialPropertyTypeId: _propertyTypeId,
+                      initialListingType: _listingType,
+                      initialMinPrice: _minPrice,
+                      initialMaxPrice: _maxPrice,
+                      onApply: _applyInlineFilters,
+                      onClose: () => setState(() => _showFilterPanel = false),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          FutureBuilder<List<Property>>(
+            future: _propertiesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return SliverFillRemaining(
+                  child: Center(child: Text("Error: ${snapshot.error}")),
+                );
+              }
+              final properties = snapshot.data ?? [];
+              if (properties.isEmpty) {
+                return const SliverFillRemaining(
+                  child: Center(
                     child: Text("No properties found. Try adjusting filters."),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: properties.length,
-                  itemBuilder: (context, index) {
+                  ),
+                );
+              }
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
                     final property = properties[index];
                     return Card(
                       margin: const EdgeInsets.all(8),
                       child: ListTile(
                         leading: property.media.isNotEmpty
-                            ? Image.network(
-                                property.media.first.file,
+                            ? CachedNetworkImage(
+                                imageUrl: property.media.first.file,
                                 width: 60,
                                 height: 60,
                                 fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  width: 60,
+                                  height: 60,
+                                  color: AppColors.cardBorder,
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Icon(Icons.broken_image, size: 40),
                               )
                             : const Icon(Icons.home, size: 40),
                         title: Text(property.title),
@@ -331,9 +342,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   },
-                );
-              },
-            ),
+                  childCount: properties.length,
+                ),
+              );
+            },
           ),
         ],
       ),

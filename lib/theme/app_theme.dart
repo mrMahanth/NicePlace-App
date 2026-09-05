@@ -11,6 +11,7 @@ class AppColors {
   static const Color textMuted = Color(0xFF5C6B7A);
   static const Color cardBorder = Color(0xFFDDEBF0);
   static const Color success = Color(0xFF2AA876); // use sparingly
+  static const Color searchStripBackground = Color(0xFFFFF1EF); // pale tint of primary, for the search strip
 }
 
 class AppTheme {

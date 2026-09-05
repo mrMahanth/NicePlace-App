@@ -33,4 +33,30 @@ class PropertyService {
       throw Exception("Failed to load properties");
     }
   }
+
+  // ---------- NAYA FUNCTION: Draft Property create karna ----------
+  // "Individual" flow ka Step 1 - user Property Type choose karte hi
+  // ye backend pe ek khaali draft Property bana deta hai. Baaki steps
+  // isi property ke id ko PATCH karte rahenge.
+  static Future<Map<String, dynamic>> createDraftProperty(int propertyTypeId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({
+          "property_type_id": propertyTypeId,
+        }),
+      );
+    });
+
+    if (response.statusCode == 201) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
 }
