@@ -7,9 +7,12 @@ import '../models/property_model.dart';
 import '../services/property_service.dart';
 import '../services/notification_service.dart';
 import '../services/location_helper.dart';
+import '../services/recent_searches_helper.dart';
 import '../utils/auth_guard.dart';
 import '../theme/app_theme.dart';
 import '../widgets/animated_hint_search_field.dart';
+import '../widgets/location_picker_sheet.dart';
+import 'all_localities_screen.dart';
 import 'search_filter_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -43,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _locationCity;
   String? _locationLocality;
   bool _locationLoading = false;
+  bool _locationDetected = false; // true only on real GPS success, not the placeholder
 
   @override
   void initState() {
@@ -88,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _locationCity = result.city;
         _locationLocality = result.locality;
         _locationLoading = false;
+        _locationDetected = true;
       });
     } catch (e) {
       if (!mounted) return;
@@ -95,11 +100,45 @@ class _HomeScreenState extends State<HomeScreen> {
         _locationCity = 'Set location';
         _locationLocality = null;
         _locationLoading = false;
+        _locationDetected = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$e')),
       );
     }
+  }
+
+  Future<void> _openLocationPicker() async {
+    final picked = await showLocationPickerSheet(
+      context,
+      currentCity: _locationDetected ? _locationCity : null,
+      onUseCurrentLocation: _refreshLocation,
+    );
+
+    if (picked == seeAllSentinel) {
+      if (!mounted) return;
+      final fromAll = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AllLocalitiesScreen(
+            currentCity: _locationDetected ? _locationCity : null,
+          ),
+        ),
+      );
+      if (fromAll != null) _applyPickedLocality(fromAll);
+      return;
+    }
+
+    if (picked != null) _applyPickedLocality(picked);
+  }
+
+  void _applyPickedLocality(String locality) {
+    setState(() {
+      _searchController.text = locality;
+      _city = null;
+    });
+    RecentSearchesHelper.addRecent(locality);
+    _loadProperties();
   }
 
   Future<void> _openNotifications() async {
@@ -177,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: InkWell(
-                onTap: _locationLoading ? null : _refreshLocation,
+                onTap: _openLocationPicker,
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
