@@ -1,15 +1,28 @@
 class PropertyMedia {
   final int id;
-  final String file;
-  final String mediaType;
+  final String? file;
+  final String? videoUrl;
+  final String mediaType; // 'image' or 'video'
+  final int order;
+  final bool isCover;
 
-  PropertyMedia({required this.id, required this.file, required this.mediaType});
+  PropertyMedia({
+    required this.id,
+    this.file,
+    this.videoUrl,
+    required this.mediaType,
+    this.order = 0,
+    this.isCover = false,
+  });
 
   factory PropertyMedia.fromJson(Map<String, dynamic> json) {
     return PropertyMedia(
       id: json['id'],
-      file: json['file'] ?? '',
-      mediaType: json['media_type'] ?? '',
+      file: json['file'],
+      videoUrl: json['video_url'],
+      mediaType: json['media_type'] ?? 'image',
+      order: json['order'] ?? 0,
+      isCover: json['is_cover'] ?? false,
     );
   }
 }

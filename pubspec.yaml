@@ -23,6 +23,7 @@ dependencies:
   geocoding: ^5.0.0
   speech_to_text: ^7.4.0
   cached_network_image: ^4.0.0
+  file_picker: ^12.2.0
 
 dev_dependencies:
   flutter_test:

@@ -126,19 +126,25 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ---------- IMAGE GALLERY ----------
-            if (property.media.isNotEmpty)
-              SizedBox(
-                height: 220,
-                child: PageView.builder(
-                  itemCount: property.media.length,
-                  itemBuilder: (context, index) {
-                    return Image.network(
-                      property.media[index].file,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    );
-                  },
-                ),
+            // Sirf image-type media dikhate hain; video ke liye alag player screen mein banega
+            if (property.media.where((m) => m.mediaType == 'image').isNotEmpty)
+              Builder(
+                builder: (context) {
+                  final images = property.media.where((m) => m.mediaType == 'image').toList();
+                  return SizedBox(
+                    height: 220,
+                    child: PageView.builder(
+                      itemCount: images.length,
+                      itemBuilder: (context, index) {
+                        return Image.network(
+                          images[index].file!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        );
+                      },
+                    ),
+                  );
+                },
               )
             else
               Container(

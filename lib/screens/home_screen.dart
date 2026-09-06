@@ -10,7 +10,7 @@ import '../services/location_helper.dart';
 import '../utils/auth_guard.dart';
 import '../theme/app_theme.dart';
 import '../widgets/animated_hint_search_field.dart';
-import '../widgets/inline_filter_panel.dart';
+import 'search_filter_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,10 +26,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   static const List<String> _searchHints = [
-    'Find Flats...',
-    'Find Plots...',
-    'Find Space for Office...',
-    'Find ATM and Banks...',
+    'Search "2BHK Flats in SK Puri"',
+    'Search "Banquet Halls Nearby"',
+    'Search "Space for Office/Bank"',
+    'Search "Plots in Punpun"',
+    'Search "Hostels Near College"',
   ];
 
   String? _city;
@@ -42,8 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _locationCity;
   String? _locationLocality;
   bool _locationLoading = false;
-
-  bool _showFilterPanel = false;
 
   @override
   void initState() {
@@ -115,16 +114,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _applyInlineFilters(Map<String, dynamic> result) {
-    setState(() {
-      _city = (result['city'] as String?)?.isEmpty ?? true ? null : result['city'];
-      _propertyTypeId = result['propertyTypeId'];
-      _listingType = result['listingType'];
-      _minPrice = result['minPrice'];
-      _maxPrice = result['maxPrice'];
-      _showFilterPanel = false;
-    });
-    _loadProperties();
+  Future<void> _openSearchFilterScreen() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SearchFilterScreen(
+          initialSearch: _searchController.text,
+          initialCity: _city,
+          initialPropertyTypeId: _propertyTypeId,
+          initialListingType: _listingType,
+          initialMinPrice: _minPrice,
+          initialMaxPrice: _maxPrice,
+        ),
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _searchController.text = (result['search'] as String?) ?? '';
+        _city = null; // search text now carries the locality/keyword instead
+        _propertyTypeId = result['propertyTypeId'];
+        _listingType = result['listingType'];
+        _minPrice = result['minPrice'];
+        _maxPrice = result['maxPrice'];
+      });
+      _loadProperties();
+    }
   }
 
   bool get _hasActiveFilters =>
@@ -254,34 +268,19 @@ class _HomeScreenState extends State<HomeScreen> {
             titleSpacing: 12,
             title: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: AnimatedHintSearchField(
-                controller: _searchController,
-                hints: _searchHints,
-                onSubmitted: (_) => _loadProperties(),
-                onFilterTap: () => setState(() => _showFilterPanel = !_showFilterPanel),
-                hasActiveFilters: _hasActiveFilters,
-                onFocusChanged: (focused) {
-                  if (focused) setState(() => _showFilterPanel = true);
-                },
+              // Wrapped in AbsorbPointer so tapping never opens a keyboard
+              // here - it always navigates to the dedicated Filters screen,
+              // which avoids the keyboard/filter overlap problem entirely.
+              child: GestureDetector(
+                onTap: _openSearchFilterScreen,
+                child: AbsorbPointer(
+                  child: AnimatedHintSearchField(
+                    controller: _searchController,
+                    hints: _searchHints,
+                    hasActiveFilters: _hasActiveFilters,
+                  ),
+                ),
               ),
-            ),
-          ),
-          // The attached filter panel - appears/disappears with a smooth
-          // height animation, pushing the property list down while open.
-          SliverToBoxAdapter(
-            child: AnimatedSize(
-              duration: const Duration(milliseconds: 250),
-              child: _showFilterPanel
-                  ? InlineFilterPanel(
-                      initialCity: _city,
-                      initialPropertyTypeId: _propertyTypeId,
-                      initialListingType: _listingType,
-                      initialMinPrice: _minPrice,
-                      initialMaxPrice: _maxPrice,
-                      onApply: _applyInlineFilters,
-                      onClose: () => setState(() => _showFilterPanel = false),
-                    )
-                  : const SizedBox.shrink(),
             ),
           ),
           FutureBuilder<List<Property>>(
@@ -312,9 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     return Card(
                       margin: const EdgeInsets.all(8),
                       child: ListTile(
-                        leading: property.media.isNotEmpty
+                        leading: property.media.any((m) => m.mediaType == 'image')
                             ? CachedNetworkImage(
-                                imageUrl: property.media.first.file,
+                                imageUrl: property.media.firstWhere((m) => m.mediaType == 'image').file!,
                                 width: 60,
                                 height: 60,
                                 fit: BoxFit.cover,

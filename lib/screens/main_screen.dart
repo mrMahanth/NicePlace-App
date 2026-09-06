@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
+import 'post_property_type_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -29,6 +30,23 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  void _onNavTap(int index) {
+    // "Post Property" ek persistent tab nahi hai - ye Home/Profile ki tarah
+    // IndexedStack mein switch nahi karta, balki seedha naye screen pe le jaata hai.
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PostPropertyTypeScreen()),
+      );
+      return;
+    }
+
+    // Home = index 0, Profile = index 2 -> _screens list mein 0 aur 1
+    setState(() {
+      _selectedIndex = index == 2 ? 1 : 0;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,14 +55,11 @@ class _MainScreenState extends State<MainScreen> {
         children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        currentIndex: _selectedIndex == 1 ? 2 : _selectedIndex,
+        onTap: _onNavTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: "Post"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),

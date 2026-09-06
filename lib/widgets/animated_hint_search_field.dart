@@ -17,6 +17,7 @@ class AnimatedHintSearchField extends StatefulWidget {
   final double iconSize; // change this to resize the search/filter/mic icons
   final double fontSize; // change this to resize the typed/hint text
   final Duration rotateInterval; // change this to speed up/slow down the ticker
+  final bool autofocus; // set true to open the keyboard immediately on screen load
 
   const AnimatedHintSearchField({
     super.key,
@@ -29,6 +30,7 @@ class AnimatedHintSearchField extends StatefulWidget {
     this.iconSize = 22,
     this.fontSize = 16,
     this.rotateInterval = const Duration(seconds: 2),
+    this.autofocus = false,
   });
 
   @override
@@ -78,31 +80,34 @@ class _AnimatedHintSearchFieldState extends State<AnimatedHintSearchField>
     });
 
     widget.controller.addListener(_onTextChanged);
-    _initSpeech();
-  }
-
-  Future<void> _initSpeech() async {
-    _speechAvailable = await _speech.initialize(
-      onError: (error) {
-        if (mounted) setState(() => _isListening = false);
-      },
-      onStatus: (status) {
-        if (status == 'done' || status == 'notListening') {
-          if (mounted) setState(() => _isListening = false);
-        }
-      },
-    );
-    if (mounted) setState(() {});
+    // Note: speech recognition is intentionally NOT initialized here.
+    // _initSpeech() now only runs the first time the user taps the mic,
+    // so the mic permission prompt appears exactly when needed, not on app launch.
   }
 
   void _onTextChanged() => setState(() {});
 
   Future<void> _toggleListening() async {
     if (!_speechAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice search is not available on this device.')),
+      // First tap ever: this is where the mic permission prompt actually appears now.
+      _speechAvailable = await _speech.initialize(
+        onError: (error) {
+          if (mounted) setState(() => _isListening = false);
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            if (mounted) setState(() => _isListening = false);
+          }
+        },
       );
-      return;
+      if (!_speechAvailable) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Voice search is not available on this device.')),
+          );
+        }
+        return;
+      }
     }
     if (_isListening) {
       await _speech.stop();
@@ -217,6 +222,7 @@ class _AnimatedHintSearchFieldState extends State<AnimatedHintSearchField>
                 TextField(
                   controller: widget.controller,
                   focusNode: _focusNode,
+                  autofocus: widget.autofocus,
                   style: TextStyle(fontSize: widget.fontSize, color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                     isDense: true,

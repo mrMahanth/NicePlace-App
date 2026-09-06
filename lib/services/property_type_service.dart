@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/property_type_model.dart';
 import '../models/property_category_model.dart';
+import '../models/attribute_definition_model.dart';
 import 'api_service.dart';
 
 class PropertyTypeService {
@@ -17,7 +18,6 @@ class PropertyTypeService {
     }
   }
 
-  // Categories - property types ko color-coded groups mein dikhane ke liye
   static Future<List<PropertyCategoryModel>> fetchPropertyCategories() async {
     final url = Uri.parse("${ApiService.baseUrl}/property-categories/");
     final response = await http.get(url);
@@ -27,6 +27,21 @@ class PropertyTypeService {
       return jsonList.map((json) => PropertyCategoryModel.fromJson(json)).toList();
     } else {
       throw Exception("Failed to load property categories");
+    }
+  }
+
+  // ---------- NAYA: Kisi property type ke attributes fetch karna ----------
+  static Future<List<AttributeDefinitionModel>> fetchAttributeDefinitions(
+      int propertyTypeId) async {
+    final url = Uri.parse(
+        "${ApiService.baseUrl}/attribute-definitions/?property_type=$propertyTypeId");
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.map((json) => AttributeDefinitionModel.fromJson(json)).toList();
+    } else {
+      throw Exception("Failed to load attributes");
     }
   }
 }
