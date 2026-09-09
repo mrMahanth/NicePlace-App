@@ -188,36 +188,46 @@ class _AnimatedHintSearchFieldState extends State<AnimatedHintSearchField>
               alignment: Alignment.centerLeft,
               children: [
                 if (showRotatingHint)
-                  ClipRect(
-                    child: SizedBox(
-                      height: _tickerHeight,
-                      child: AnimatedBuilder(
-                        animation: _tickerController,
-                        builder: (context, _) {
-                          final progress = _tickerController.value;
-                          return Stack(
-                            children: [
-                              // Current phrase slides UP and fades out
-                              Transform.translate(
-                                offset: Offset(0, -progress * _tickerHeight),
-                                child: Opacity(
-                                  opacity: 1 - progress,
-                                  child: _hintText(widget.hints[_currentHintIndex]),
-                                ),
-                              ),
-                              // Next phrase slides UP from below and fades in
-                              Transform.translate(
-                                offset: Offset(0, (1 - progress) * _tickerHeight),
-                                child: Opacity(
-                                  opacity: progress,
-                                  child: _hintText(widget.hints[nextHintIndex]),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                  Row(
+                    children: [
+                      Text(
+                        'Search ',
+                        style: TextStyle(fontSize: widget.fontSize, color: AppColors.textMuted),
                       ),
-                    ),
+                      Expanded(
+                        child: ClipRect(
+                          child: SizedBox(
+                            height: _tickerHeight,
+                            child: AnimatedBuilder(
+                              animation: _tickerController,
+                              builder: (context, _) {
+                                final progress = _tickerController.value;
+                                return Stack(
+                                  children: [
+                                    // Current phrase slides UP and fades out
+                                    Transform.translate(
+                                      offset: Offset(0, -progress * _tickerHeight),
+                                      child: Opacity(
+                                        opacity: 1 - progress,
+                                        child: _hintText(widget.hints[_currentHintIndex]),
+                                      ),
+                                    ),
+                                    // Next phrase slides UP from below and fades in
+                                    Transform.translate(
+                                      offset: Offset(0, (1 - progress) * _tickerHeight),
+                                      child: Opacity(
+                                        opacity: progress,
+                                        child: _hintText(widget.hints[nextHintIndex]),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 TextField(
                   controller: widget.controller,

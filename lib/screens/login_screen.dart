@@ -1,4 +1,3 @@
-import 'register_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'edit_profile_screen.dart';
@@ -12,7 +11,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  String _mode = 'password'; // 'password' or 'otp'
+  String _mode = 'otp'; // 'otp' or 'password' - OTP is the default/primary path
 
   // Password login fields
   final _usernameController = TextEditingController();
@@ -44,7 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) Navigator.pop(context, true);
     } else {
       setState(() {
-        _errorMessage = "Login failed. Please check your username and password.";
+        _errorMessage = result["error"] ??
+            "Login failed. Please check your username and password.";
       });
     }
   }
@@ -99,16 +99,23 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result["success"] == true) {
       final isNewUser = result["data"]?["is_new_user"] ?? false;
 
-      if (mounted) {
-        Navigator.pop(context, true); // close login screen first
-
-        if (isNewUser) {
-          // New user via OTP - redirect to Edit Profile to complete their details
-          Navigator.push(
+      if (isNewUser) {
+        // Naya user - pehle unka profile complete karwao (push karo, pop nahi
+        // karo abhi), phir hi is LoginScreen ka kaam khatam hoga.
+        if (mounted) {
+          await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+            MaterialPageRoute(
+              builder: (context) => const EditProfileScreen(isNewUserFlow: true),
+            ),
           );
         }
+      }
+
+      // Ab poora flow (naye user ke liye profile+applock, ya existing user
+      // ke liye seedha) khatam ho chuka hai - LoginScreen band karo.
+      if (mounted) {
+        Navigator.pop(context, true);
       }
     } else {
       setState(() => _errorMessage = result["error"]);
@@ -133,13 +140,17 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // ---------- MODE TOGGLE ----------
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'password', label: Text("Password")),
-                ButtonSegment(value: 'otp', label: Text("OTP")),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (selected) => _switchMode(selected.first),
+            // OTP first (primary/default path), Password second.
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'otp', label: Text("OTP")),
+                  ButtonSegment(value: 'password', label: Text("Password")),
+                ],
+                selected: {_mode},
+                onSelectionChanged: (selected) => _switchMode(selected.first),
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -159,18 +170,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
 
             const SizedBox(height: 8),
-            TextButton(
-              onPressed: () async {
-                final registered = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RegisterScreen()),
-                );
-                if (registered == true && context.mounted) {
-                  Navigator.pop(context, true);
-                }
-              },
-              child: const Text("New user? Register here"),
-            ),
+            // "Register" is just the phone+OTP flow above, which already
+            // detects new users and routes them into EditProfileScreen ->
+            // lock prompt -> Home. Only shown from the Password tab, since
+            // OTP is already the default/active tab otherwise.
+            if (_mode != 'otp')
+              TextButton(
+                onPressed: () => _switchMode('otp'),
+                child: const Text("New user? Register here"),
+              ),
           ],
         ),
       ),

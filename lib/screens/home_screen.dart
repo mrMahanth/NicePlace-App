@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/property_model.dart';
 import '../services/property_service.dart';
 import '../services/notification_service.dart';
+import '../services/api_service.dart';
 import '../services/location_helper.dart';
 import '../services/recent_searches_helper.dart';
 import '../utils/auth_guard.dart';
@@ -25,16 +26,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Property>> _propertiesFuture;
   int _unreadCount = 0;
+  bool _isLoggedIn = false;
 
   final TextEditingController _searchController = TextEditingController();
 
   static const List<String> _searchHints = [
-    'Search "2BHK Flats in SK Puri"',
-    'Search "Banquet Halls Nearby"',
-    'Search "Space for Office/Bank"',
-    'Search "Plots in Punpun"',
-    'Search "Hostels Near College"',
-  ];
+      '"2BHK Flats in SK Puri"',
+      '"Banquet Halls Nearby"',
+      '"Shop in Bhootnath"',
+      '"Space for Office/Bank"',
+      '"Plots in Bihta"',
+      '"Hostels Near College"',
+    ];
 
   String? _city;
   int? _propertyTypeId;
@@ -54,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadProperties();
     _loadUnreadCount();
     _refreshLocation();
+    _checkLoginStatus();
   }
 
   @override
@@ -80,6 +84,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final count = await NotificationService.fetchUnreadCount();
     if (mounted) {
       setState(() => _unreadCount = count);
+    }
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final token = await ApiService.getAccessToken();
+    if (mounted) {
+      setState(() => _isLoggedIn = token != null);
     }
   }
 
@@ -153,6 +164,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Guest -> send straight to Login (via the same AuthGuard used elsewhere
+  // in this file, so behavior/UX stays consistent app-wide).
+  // Logged-in -> open the profile side panel as before.
+  Future<void> _handleAvatarTap(BuildContext innerContext) async {
+    if (_isLoggedIn) {
+      Scaffold.of(innerContext).openEndDrawer();
+      return;
+    }
+    final loggedIn = await AuthGuard.ensureLoggedIn(context);
+    if (loggedIn && mounted) {
+      _checkLoginStatus();
+      _loadUnreadCount();
+    }
+  }
+
+  // Called by ProfileScreen (shown in the endDrawer) after a logout, so the
+  // "Login" pill reappears on the avatar without needing to reopen the app.
+  void _handleLoggedOutFromDrawer() {
+    _checkLoginStatus();
+    setState(() => _unreadCount = 0);
+  }
+
   Future<void> _openSearchFilterScreen() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -193,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // The slide-in panel from the right.
       endDrawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.85,
-        child: const ProfileScreen(),
+        child: ProfileScreen(onLoggedOut: _handleLoggedOutFromDrawer),
       ),
       appBar: AppBar(
         backgroundColor: AppColors.primary,
@@ -274,11 +307,34 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(right: 12, left: 2),
             child: Builder(
               builder: (innerContext) => GestureDetector(
-                onTap: () => Scaffold.of(innerContext).openEndDrawer(),
-                child: const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: AppColors.primary),
+                onTap: () => _handleAvatarTap(innerContext),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.person, color: AppColors.primary),
+                    ),
+                    if (!_isLoggedIn)
+                      Container(
+                        margin: const EdgeInsets.only(top: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          "Login",
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

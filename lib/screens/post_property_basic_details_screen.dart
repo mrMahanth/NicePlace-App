@@ -65,6 +65,9 @@ class _PostPropertyBasicDetailsScreenState
       _stateController.text = result.state;
       _districtController.text = result.district;
       _cityController.text = result.city;
+      if (result.pincode.isNotEmpty) {
+        _pincodeController.text = result.pincode;
+      }
       _locationConfirmed = false;
     });
   }
@@ -213,6 +216,7 @@ class _PostPropertyBasicDetailsScreenState
       district: _districtController.text.trim(),
       state: _stateController.text.trim(),
       country: _countryController.text.trim(),
+      pincode: _pincodeController.text.trim(),
       latitude: _selectedPoint?.latitude,
       longitude: _selectedPoint?.longitude,
     );

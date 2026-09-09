@@ -19,16 +19,28 @@ Future<String?> showLocationPickerSheet(
   String? currentCity,
   required VoidCallback onUseCurrentLocation,
 }) {
-  return showModalBottomSheet<String>(
+  // Flutter has no built-in "top sheet" widget (unlike showModalBottomSheet),
+  // so this is built manually with showGeneralDialog: a custom barrier +
+  // a slide-down-from-top transition, positioned just below the AppBar.
+  return showGeneralDialog<String>(
     context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (context) => _LocationPickerSheet(
-      currentCity: currentCity,
-      onUseCurrentLocation: onUseCurrentLocation,
-    ),
+    barrierDismissible: true,
+    barrierLabel: 'Dismiss location picker',
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return _LocationPickerSheet(
+        currentCity: currentCity,
+        onUseCurrentLocation: onUseCurrentLocation,
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+      return SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(curved),
+        child: child,
+      );
+    },
   );
 }
 
@@ -130,120 +142,145 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBorder,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              // Use Current Location
-              ListTile(
-                leading: const Icon(Icons.my_location, color: AppColors.accent),
-                title: const Text('Use Current Location', style: TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () {
-                  widget.onUseCurrentLocation();
-                  Navigator.pop(context);
-                },
-              ),
-              const Divider(height: 1),
+    final topInset = MediaQuery.of(context).padding.top + kToolbarHeight;
+    final maxHeight = MediaQuery.of(context).size.height * 0.65;
 
-              // Locations with active properties - horizontal scrollable
-              // tiles instead of a vertical list, so this section can't push
-              // the rest of the sheet further and further down as the
-              // locality count grows.
-              _sectionHeader('LOCATIONS WITH ACTIVE PROPERTIES'),
-              if (_loadingLocalities)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_activeLocalities.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('No active localities yet.', style: TextStyle(color: AppColors.textMuted)),
-                )
-              else
-                SizedBox(
-                  height: 44,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      ..._activeLocalities.take(6).map(
-                        (locality) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ActionChip(
-                            avatar: const Icon(Icons.location_on_outlined, size: 16),
-                            label: Text(locality),
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: AppColors.cardBorder),
-                            onPressed: () => Navigator.pop(context, locality),
-                          ),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: EdgeInsets.only(top: topInset),
+        child: Material(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    // Use Current Location
+                    ListTile(
+                      leading: const Icon(Icons.my_location, color: AppColors.accent),
+                      title: const Text('Use Current Location', style: TextStyle(fontWeight: FontWeight.w600)),
+                      onTap: () {
+                        widget.onUseCurrentLocation();
+                        Navigator.pop(context);
+                      },
+                    ),
+                    const Divider(height: 1),
+
+                    // Locations with active properties - horizontal scrollable
+                    // tiles instead of a vertical list, so this section can't push
+                    // the rest of the sheet further and further down as the
+                    // locality count grows.
+                    _sectionHeader('LOCATIONS WITH ACTIVE PROPERTIES'),
+                    if (_loadingLocalities)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_activeLocalities.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Text('No active localities yet.', style: TextStyle(color: AppColors.textMuted)),
+                      )
+                    else
+                      SizedBox(
+                        height: 44,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          children: [
+                            ..._activeLocalities.take(6).map(
+                              (locality) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ActionChip(
+                                  avatar: const Icon(Icons.location_on_outlined, size: 16),
+                                  label: Text(locality),
+                                  backgroundColor: Colors.white,
+                                  side: const BorderSide(color: AppColors.cardBorder),
+                                  onPressed: () => Navigator.pop(context, locality),
+                                ),
+                              ),
+                            ),
+                            ActionChip(
+                              avatar: const Icon(Icons.arrow_forward, size: 16, color: AppColors.accent),
+                              label: const Text(
+                                'See all',
+                                style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600),
+                              ),
+                              backgroundColor: AppColors.accent.withValues(alpha: 0.08),
+                              side: const BorderSide(color: AppColors.accent),
+                              onPressed: () => Navigator.pop(context, seeAllSentinel),
+                            ),
+                          ],
                         ),
                       ),
-                      ActionChip(
-                        avatar: const Icon(Icons.arrow_forward, size: 16, color: AppColors.accent),
-                        label: const Text(
-                          'See all',
-                          style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600),
+                    const SizedBox(height: 8),
+
+                    // Recent searches
+                    if (_recentSearches.isNotEmpty) ...[
+                      const Divider(height: 1),
+                      _sectionHeader('RECENT SEARCHES'),
+                      ..._recentSearches.map(
+                        (recent) => ListTile(
+                          leading: const Icon(Icons.history, color: AppColors.textMuted),
+                          title: Text(recent),
+                          onTap: () => Navigator.pop(context, recent),
                         ),
-                        backgroundColor: AppColors.accent.withValues(alpha: 0.08),
-                        side: const BorderSide(color: AppColors.accent),
-                        onPressed: () => Navigator.pop(context, seeAllSentinel),
                       ),
                     ],
-                  ),
-                ),
-              const SizedBox(height: 8),
 
-              // Recent searches
-              if (_recentSearches.isNotEmpty) ...[
-                const Divider(height: 1),
-                _sectionHeader('RECENT SEARCHES'),
-                ..._recentSearches.map(
-                  (recent) => ListTile(
-                    leading: const Icon(Icons.history, color: AppColors.textMuted),
-                    title: Text(recent),
-                    onTap: () => Navigator.pop(context, recent),
-                  ),
+                    const Divider(height: 1),
+                    // Expanding soon
+                    _sectionHeader('EXPANDING SOON'),
+                    const ListTile(
+                      leading: Icon(Icons.check_circle, color: AppColors.success),
+                      title: Text('Patna'),
+                      trailing: Text('Active', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.lock_outline, color: AppColors.textMuted),
+                      title: const Text('Hajipur'),
+                      trailing: const Text('Coming Soon', style: TextStyle(color: AppColors.textMuted)),
+                      onTap: () => _showComingSoonDialog('Hajipur'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.lock_outline, color: AppColors.textMuted),
+                      title: const Text('Sonepur'),
+                      trailing: const Text('Coming Soon', style: TextStyle(color: AppColors.textMuted)),
+                      onTap: () => _showComingSoonDialog('Sonepur'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.lock_outline, color: AppColors.textMuted),
+                      title: const Text('Muzaffarpur'),
+                      trailing: const Text('Coming Soon', style: TextStyle(color: AppColors.textMuted)),
+                      onTap: () => _showComingSoonDialog('Muzaffarpur'),
+                    ),
+                    const SizedBox(height: 10),
+                    // Handle at the BOTTOM now, since this sheet opens from
+                    // the top - visually indicates "this edge is dismissable"
+                    // the same way a bottom sheet's handle sits at its top edge.
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBorder,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-
-              const Divider(height: 1),
-              // Expanding soon
-              _sectionHeader('EXPANDING SOON'),
-              const ListTile(
-                leading: Icon(Icons.check_circle, color: AppColors.success),
-                title: Text('Patna'),
-                trailing: Text('Active', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
               ),
-              ListTile(
-                leading: const Icon(Icons.lock_outline, color: AppColors.textMuted),
-                title: const Text('Ranchi'),
-                trailing: const Text('Coming Soon', style: TextStyle(color: AppColors.textMuted)),
-                onTap: () => _showComingSoonDialog('Ranchi'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.lock_outline, color: AppColors.textMuted),
-                title: const Text('Muzaffarpur'),
-                trailing: const Text('Coming Soon', style: TextStyle(color: AppColors.textMuted)),
-                onTap: () => _showComingSoonDialog('Muzaffarpur'),
-              ),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         ),
       ),

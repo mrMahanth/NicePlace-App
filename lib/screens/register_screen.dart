@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/phone_input_field.dart';
+import 'enable_lock_prompt_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -42,7 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     if (result["success"] == true) {
-      // Registration successful - log the user in automatically, then go back
+      // Register hote hi automatically login bhi kar do (taaki dobara na maangna pade)
       final loginResult = await ApiService.login(
         _usernameController.text.trim(),
         _passwordController.text.trim(),
@@ -50,13 +51,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (mounted) {
         if (loginResult["success"] == true) {
-          Navigator.pop(context, true); // signal success to Login screen
-        } else {
-          // Registered but auto-login failed - still let them know it worked
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Registration successful! Please login.")),
+          // Lock-prompt screen "push" karo (naya replace nahi) - iska result
+          // wapas milega jab woh apna kaam khatam karke pop(true) karegi.
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const EnableLockPromptScreen()),
           );
-          Navigator.pop(context, false);
+
+          // Ab is RegisterScreen ka bhi kaam khatam - LoginScreen ko batao
+          // "sab successful raha" taaki wo bhi aage pop(true) kare.
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
+        } else {
+          // Auto-login fail hua kisi wajah se - user ko batao manually login
+          // karna hoga, aur bina success flag ke wapas Login screen par bhej do
+          // (jo already stack mein neeche maujood hai, dobara push nahi karna).
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Registration ho gaya, lekin auto-login fail hua. Please login karein.")),
+            );
+            Navigator.pop(context, false);
+          }
         }
       }
     } else {

@@ -63,6 +63,7 @@ class PropertyService {
     required String district,
     required String state,
     required String country,
+    required String pincode,
     double? latitude,
     double? longitude,
   }) async {
@@ -81,6 +82,7 @@ class PropertyService {
           "district": district,
           "state": state,
           "country": country,
+          "pincode": pincode,
           "latitude": latitude,
           "longitude": longitude,
         }),

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile_model.dart';
 import '../services/user_profile_service.dart';
+import 'enable_lock_prompt_screen.dart';
+
+enum _UsernameStatus { idle, checking, available, taken, unknown }
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final bool isNewUserFlow;
+
+  const EditProfileScreen({super.key, this.isNewUserFlow = false});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -17,6 +22,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressLineController = TextEditingController();
   final _pincodeController = TextEditingController();
@@ -26,16 +32,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _stateController = TextEditingController();
   final _countryController = TextEditingController();
 
+  final _usernameFocusNode = FocusNode();
+  String _originalUsername = '';
+  _UsernameStatus _usernameStatus = _UsernameStatus.idle;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _usernameFocusNode.addListener(() {
+      if (!_usernameFocusNode.hasFocus) {
+        _checkUsername();
+      }
+    });
   }
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _addressLineController.dispose();
     _pincodeController.dispose();
@@ -44,6 +60,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _districtController.dispose();
     _stateController.dispose();
     _countryController.dispose();
+    _usernameFocusNode.dispose();
     super.dispose();
   }
 
@@ -54,6 +71,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final UserProfileModel profile = result['data'];
       _firstNameController.text = profile.firstName;
       _lastNameController.text = profile.lastName;
+      _usernameController.text = profile.username;
+      _originalUsername = profile.username;
       _emailController.text = profile.email;
       _addressLineController.text = profile.addressLine;
       _pincodeController.text = profile.pincode;
@@ -69,6 +88,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _checkUsername() async {
+    final value = _usernameController.text.trim();
+
+    // Optional field: blank is always fine, and no need to re-check the
+    // value the user already had before opening this screen.
+    if (value.isEmpty || value == _originalUsername) {
+      setState(() => _usernameStatus = _UsernameStatus.idle);
+      return;
+    }
+
+    setState(() => _usernameStatus = _UsernameStatus.checking);
+
+    final available = await UserProfileService.checkUsernameAvailable(value);
+
+    if (!mounted) return;
+    setState(() {
+      if (available == null) {
+        _usernameStatus = _UsernameStatus.unknown;
+      } else {
+        _usernameStatus = available ? _UsernameStatus.available : _UsernameStatus.taken;
+      }
+    });
   }
 
   Future<void> _handlePincodeLookup() async {
@@ -95,6 +138,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _handleSave() async {
+    if (_usernameStatus == _UsernameStatus.taken) {
+      setState(() =>
+          _errorMessage = "That username is already taken. Please choose another.");
+      return;
+    }
+
     setState(() {
       _isSaving = true;
       _errorMessage = null;
@@ -103,6 +152,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final result = await UserProfileService.updateMyProfile({
       "first_name": _firstNameController.text.trim(),
       "last_name": _lastNameController.text.trim(),
+      "username": _usernameController.text.trim(),
       "email": _emailController.text.trim(),
       "address_line": _addressLineController.text.trim(),
       "pincode": _pincodeController.text.trim(),
@@ -120,10 +170,51 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Profile updated successfully!")),
         );
-        Navigator.pop(context, true);
+
+        // Sirf naye user (jo abhi register hua OTP se) ke liye App Lock
+        // prompt dikhao - existing user jab Edit Profile se update kare,
+        // tab ye dobara nahi puchna.
+        if (widget.isNewUserFlow) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const EnableLockPromptScreen()),
+          );
+        }
+
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
       }
     } else {
-      setState(() => _errorMessage = "Could not save profile. Please try again.");
+      // The backend's own uniqueness check on save is the final word - if
+      // the live on-blur check missed a race (two people grab the same
+      // username at once), surface that here too.
+      final errorText = result["error"]?.toString() ?? '';
+      setState(() => _errorMessage = errorText.toLowerCase().contains("username")
+          ? "That username is already taken. Please choose another."
+          : "Could not save profile. Please try again.");
+    }
+  }
+
+  Widget? _usernameStatusIcon() {
+    switch (_usernameStatus) {
+      case _UsernameStatus.checking:
+        return const Padding(
+          padding: EdgeInsets.all(12),
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        );
+      case _UsernameStatus.available:
+        return const Icon(Icons.check_circle, color: Colors.green);
+      case _UsernameStatus.taken:
+        return const Icon(Icons.cancel, color: Colors.red);
+      case _UsernameStatus.unknown:
+        return const Icon(Icons.error_outline, color: Colors.orange);
+      case _UsernameStatus.idle:
+        return null;
     }
   }
 
@@ -152,6 +243,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     decoration: const InputDecoration(
                         labelText: "Last Name", border: OutlineInputBorder()),
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _usernameController,
+                    focusNode: _usernameFocusNode,
+                    decoration: InputDecoration(
+                      labelText: "Username (optional)",
+                      border: const OutlineInputBorder(),
+                      helperText: "Leave blank to skip. Must be unique if set.",
+                      suffixIcon: _usernameStatusIcon(),
+                    ),
+                    onChanged: (_) {
+                      // Any further edit invalidates the last check result
+                      // until it's re-verified on the next blur.
+                      if (_usernameStatus != _UsernameStatus.idle) {
+                        setState(() => _usernameStatus = _UsernameStatus.idle);
+                      }
+                    },
+                  ),
+                  if (_usernameStatus == _UsernameStatus.taken)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4, left: 4),
+                      child: Text("Already taken - try another.",
+                          style: TextStyle(color: Colors.red, fontSize: 12)),
+                    ),
+                  if (_usernameStatus == _UsernameStatus.available)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4, left: 4),
+                      child: Text("Available!",
+                          style: TextStyle(color: Colors.green, fontSize: 12)),
+                    ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _emailController,

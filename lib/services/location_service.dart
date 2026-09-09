@@ -11,6 +11,7 @@ class LocationResult {
   final String district;
   final String state;
   final String country;
+  final String pincode;
 
   LocationResult({
     required this.latitude,
@@ -21,6 +22,7 @@ class LocationResult {
     required this.district,
     required this.state,
     required this.country,
+    this.pincode = '',
   });
 }
 
@@ -86,6 +88,7 @@ class LocationService {
       district: address['state_district'] ?? address['county'] ?? '',
       state: address['state'] ?? '',
       country: address['country'] ?? 'India',
+      pincode: address['postcode'] ?? '',
     );
   }
 
@@ -115,6 +118,7 @@ class LocationService {
         district: address['state_district'] ?? address['county'] ?? '',
         state: address['state'] ?? '',
         country: address['country'] ?? 'India',
+        pincode: address['postcode'] ?? '',
       );
     }).toList();
   }

@@ -29,7 +29,23 @@ class ApiService {
 
       return {"success": true, "data": data};
     } else {
-      return {"success": false, "error": response.body};
+      // The backend returns either {"non_field_errors": ["..."]} for our
+      // custom validation (e.g. "no password set yet"), or a generic JWT
+      // error - pull out the clearest available message.
+      String errorMsg = "Login failed. Please check your username and password.";
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map) {
+          if (body["non_field_errors"] is List && (body["non_field_errors"] as List).isNotEmpty) {
+            errorMsg = body["non_field_errors"][0].toString();
+          } else if (body["detail"] != null) {
+            errorMsg = body["detail"].toString();
+          }
+        }
+      } catch (e) {
+        // keep default errorMsg
+      }
+      return {"success": false, "error": errorMsg};
     }
   }
 

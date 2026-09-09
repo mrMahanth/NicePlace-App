@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
 import 'post_property_type_screen.dart';
+import '../widgets/quick_links_sheet.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -31,8 +32,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onNavTap(int index) {
-    // "Post Property" ek persistent tab nahi hai - ye Home/Profile ki tarah
-    // IndexedStack mein switch nahi karta, balki seedha naye screen pe le jaata hai.
+    // "Post Property" and "Quick Links" are not persistent tabs - like Home/
+    // Profile they don't switch the IndexedStack. Post pushes a new screen;
+    // Quick Links opens a bottom sheet. Neither changes _selectedIndex.
     if (index == 1) {
       Navigator.push(
         context,
@@ -40,10 +42,14 @@ class _MainScreenState extends State<MainScreen> {
       );
       return;
     }
+    if (index == 2) {
+      showQuickLinksSheet(context);
+      return;
+    }
 
-    // Home = index 0, Profile = index 2 -> _screens list mein 0 aur 1
+    // Home = index 0, Profile = index 3 -> _screens list mein 0 aur 1
     setState(() {
-      _selectedIndex = index == 2 ? 1 : 0;
+      _selectedIndex = index == 3 ? 1 : 0;
     });
   }
 
@@ -55,11 +61,13 @@ class _MainScreenState extends State<MainScreen> {
         children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex == 1 ? 2 : _selectedIndex,
+        type: BottomNavigationBarType.fixed, // needed once there are 4+ items, keeps labels visible
+        currentIndex: _selectedIndex == 1 ? 3 : _selectedIndex,
         onTap: _onNavTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: "Post"),
+          BottomNavigationBarItem(icon: Icon(Icons.apps), label: "Quick Links"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),
