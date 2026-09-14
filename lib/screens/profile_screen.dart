@@ -78,10 +78,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (loggedIn) _checkLoginStatus();
   }
 
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Are you sure?"),
+        content: const Text("You will be logged out of your account."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Log Out"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      _handleLogout();
+    }
+  }
+
   Future<void> _handleLogout() async {
     await ApiService.logout();
-    _checkLoginStatus();
     widget.onLoggedOut?.call();
+    if (mounted) Navigator.of(context).pop(); // close the drawer, back to Home
   }
 
   Future<void> _openMessages() async {
@@ -220,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                     ),
-                    onPressed: _handleLogout,
+                    onPressed: _confirmLogout,
                   )
                 : ElevatedButton.icon(
                     icon: const Icon(Icons.login),

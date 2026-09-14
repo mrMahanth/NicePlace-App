@@ -134,11 +134,17 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("NicePlace Login")),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Text(
+              "Log in or Create Account",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
             // ---------- MODE TOGGLE ----------
             // OTP first (primary/default path), Password second.
             SizedBox(
@@ -204,7 +210,14 @@ class _LoginScreenState extends State<LoginScreen> {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () => _switchMode('otp'),
+            child: const Text("Forgot Password?"),
+          ),
+        ),
+        const SizedBox(height: 8),
         _isLoading
             ? const CircularProgressIndicator()
             : ElevatedButton(
@@ -234,9 +247,18 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          TextButton(
-            onPressed: () => setState(() => _otpSent = false),
-            child: const Text("Change phone number"),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: () => setState(() => _otpSent = false),
+                child: const Text("Change phone number"),
+              ),
+              TextButton(
+                onPressed: _isLoading ? null : _handleSendOtp,
+                child: const Text("Resend OTP"),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
         ],

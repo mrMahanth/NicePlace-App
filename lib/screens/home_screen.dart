@@ -184,6 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleLoggedOutFromDrawer() {
     _checkLoginStatus();
     setState(() => _unreadCount = 0);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("You are logged out successfully")),
+    );
   }
 
   Future<void> _openSearchFilterScreen() async {
