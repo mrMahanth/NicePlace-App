@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'screens/main_screen.dart';
+import 'screens/splash_decider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,13 +13,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Wait 2 seconds, then move to the real Home/Main screen.
+    // Wait 2 seconds, then hand off to SplashDecider, which checks
+    // login/lock status and routes to the right screen.
     // Change the Duration below to make the splash show for longer or shorter.
     Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (context) => const MainScreen(),
+          builder: (context) => const SplashDecider(),
         ),
       );
     });

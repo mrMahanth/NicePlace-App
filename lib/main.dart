@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/splash_decider.dart';
-import 'theme/app_theme.dart';
 import 'splash_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const NicePlaceApp());
@@ -16,7 +15,7 @@ class NicePlaceApp extends StatelessWidget {
       title: 'NicePlace',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const SplashDecider(),
+      home: const SplashScreen(),
     );
   }
 }

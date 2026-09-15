@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../models/user_profile_model.dart';
+import 'dart:io';
 
 class UserProfileService {
   // Get logged-in user's profile
@@ -118,6 +119,74 @@ class UserProfileService {
       }
     } catch (e) {
       return {"success": false, "error": "Login required"};
+    }
+  }
+
+  // ---------- CHANGE PASSWORD (OTP-gated) ----------
+  // username: same as before (unchanged) or a new value if the user chose
+  // "Change User Name" too - both cases require the same OTP verification.
+  static Future<Map<String, dynamic>> changePasswordWithOtp({
+    required String username,
+    required String password,
+    required String password2,
+    required String otpCode,
+  }) async {
+    try {
+      final response = await ApiService.authorizedRequest((token) {
+        final url = Uri.parse("${ApiService.baseUrl}/auth/change-password-otp/");
+        return http.post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer $token",
+          },
+          body: jsonEncode({
+            "username": username,
+            "password": password,
+            "password2": password2,
+            "otp_code": otpCode,
+          }),
+        );
+      });
+
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      } else {
+        String errorMsg = "Could not change password.";
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body["error"] != null) errorMsg = body["error"].toString();
+        } catch (e) {
+          // keep default errorMsg
+        }
+        return {"success": false, "error": errorMsg};
+      }
+    } catch (e) {
+      return {"success": false, "error": "Login required"};
+    }
+  }
+
+  // ---------- UPLOAD PROFILE PHOTO ----------
+  static Future<Map<String, dynamic>> uploadProfilePhoto(File photoFile) async {
+    try {
+      final token = await ApiService.getAccessToken();
+      if (token == null) return {"success": false, "error": "Login required"};
+
+      final url = Uri.parse("${ApiService.baseUrl}/auth/me/photo/");
+      final request = http.MultipartRequest('POST', url);
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(await http.MultipartFile.fromPath('photo', photoFile.path));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      } else {
+        return {"success": false, "error": "Could not upload photo."};
+      }
+    } catch (e) {
+      return {"success": false, "error": "Could not upload photo."};
     }
   }
 

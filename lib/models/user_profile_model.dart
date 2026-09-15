@@ -15,6 +15,7 @@ class UserTagInfo {
 }
 
 class UserProfileModel {
+  final String? profilePhoto;
   final String username;
   final String firstName;
   final String lastName;
@@ -36,6 +37,7 @@ class UserProfileModel {
   final List<UserTagInfo> tags;
 
   UserProfileModel({
+    this.profilePhoto,
     required this.username,
     required this.firstName,
     required this.lastName,
@@ -61,6 +63,7 @@ class UserProfileModel {
 
   factory UserProfileModel.fromJson(Map<String, dynamic> json) {
     return UserProfileModel(
+      profilePhoto: json['profile_photo'],
       username: json['username'] ?? '',
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',

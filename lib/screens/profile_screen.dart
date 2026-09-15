@@ -5,8 +5,7 @@ import '../services/app_lock_service.dart';
 import '../services/user_profile_service.dart';
 import '../utils/auth_guard.dart';
 import 'inquiries_list_screen.dart';
-import 'edit_profile_screen.dart';
-import 'set_username_screen.dart';
+import 'my_profile_screen.dart';
 import 'tags/tags_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -118,18 +117,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _openEditProfile() async {
+  Future<void> _openMyProfile() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-    );
-    _checkLoginStatus();
-  }
-
-  Future<void> _openSetUsername() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SetUsernameScreen()),
+      MaterialPageRoute(builder: (context) => const MyProfileScreen()),
     );
     _checkLoginStatus();
   }
@@ -182,20 +173,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           if (_isLoggedIn)
             ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text("Edit Profile"),
-              subtitle: const Text("Update your details and address"),
+              leading: const Icon(Icons.person_outline),
+              title: const Text("My Profile"),
+              subtitle: const Text("View your details, tags and account info"),
               trailing: const Icon(Icons.chevron_right),
-              onTap: _openEditProfile,
-            ),
-
-          if (_isLoggedIn && !_hasCustomUsername)
-            ListTile(
-              leading: const Icon(Icons.badge_outlined),
-              title: const Text("Set Username"),
-              subtitle: const Text("Create a username & password to also login without OTP"),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _openSetUsername,
+              onTap: _openMyProfile,
             ),
 
           if (_isLoggedIn)
