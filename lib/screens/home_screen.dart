@@ -6,15 +6,20 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/property_model.dart';
 import '../services/property_service.dart';
 import '../services/notification_service.dart';
-import '../services/api_service.dart';
 import '../services/location_helper.dart';
 import '../services/recent_searches_helper.dart';
 import '../utils/auth_guard.dart';
 import '../theme/app_theme.dart';
 import '../widgets/animated_hint_search_field.dart';
+import '../widgets/hero_slider_banner.dart';
 import '../widgets/location_picker_sheet.dart';
 import 'all_localities_screen.dart';
 import 'search_filter_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../models/slider_model.dart';
+import '../services/slider_service.dart';
+import '../utils/internal_page_registry.dart';
+import '../widgets/tag_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,18 +31,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Property>> _propertiesFuture;
   int _unreadCount = 0;
-  bool _isLoggedIn = false;
 
   final TextEditingController _searchController = TextEditingController();
 
   static const List<String> _searchHints = [
-      '"2BHK Flats in SK Puri"',
-      '"Banquet Halls Nearby"',
-      '"Shop in Bhootnath"',
-      '"Space for Office/Bank"',
-      '"Plots in Bihta"',
-      '"Hostels Near College"',
-    ];
+    'Search "2BHK Flats in SK Puri"',
+    'Search "Banquet Halls Nearby"',
+    'Search "Space for Office/Bank"',
+    'Search "Plots in Punpun"',
+    'Search "Hostels Near College"',
+  ];
+
+  late Future<List<SliderModel>> _slidersFuture;
 
   String? _city;
   int? _propertyTypeId;
@@ -57,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadProperties();
     _loadUnreadCount();
     _refreshLocation();
-    _checkLoginStatus();
+    _slidersFuture = SliderService.fetchActiveSliders();
   }
 
   @override
@@ -84,13 +89,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final count = await NotificationService.fetchUnreadCount();
     if (mounted) {
       setState(() => _unreadCount = count);
-    }
-  }
-
-  Future<void> _checkLoginStatus() async {
-    final token = await ApiService.getAccessToken();
-    if (mounted) {
-      setState(() => _isLoggedIn = token != null);
     }
   }
 
@@ -164,31 +162,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Guest -> send straight to Login (via the same AuthGuard used elsewhere
-  // in this file, so behavior/UX stays consistent app-wide).
-  // Logged-in -> open the profile side panel as before.
-  Future<void> _handleAvatarTap(BuildContext innerContext) async {
-    if (_isLoggedIn) {
-      Scaffold.of(innerContext).openEndDrawer();
-      return;
-    }
-    final loggedIn = await AuthGuard.ensureLoggedIn(context);
-    if (loggedIn && mounted) {
-      _checkLoginStatus();
-      _loadUnreadCount();
-    }
-  }
-
-  // Called by ProfileScreen (shown in the endDrawer) after a logout, so the
-  // "Login" pill reappears on the avatar without needing to reopen the app.
-  void _handleLoggedOutFromDrawer() {
-    _checkLoginStatus();
-    setState(() => _unreadCount = 0);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("You are logged out successfully")),
-    );
-  }
-
   Future<void> _openSearchFilterScreen() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -216,6 +189,83 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleSliderTap(SliderModel slider) async {
+    switch (slider.destinationType) {
+      case 'property':
+        if (slider.destinationPropertyId == null) return;
+        try {
+          final property = await SliderService.fetchPropertyById(slider.destinationPropertyId!);
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => PropertyDetailScreen(property: property)),
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not load this property.')),
+            );
+          }
+        }
+        break;
+
+      case 'property_type':
+        setState(() {
+          _propertyTypeId = slider.destinationPropertyTypeId;
+        });
+        _loadProperties();
+        break;
+
+      case 'prefilled_search':
+        setState(() {
+          _searchController.text = slider.searchLocality ?? '';
+          _propertyTypeId = slider.searchPropertyTypeId;
+          _listingType = (slider.searchListingType?.isNotEmpty ?? false) ? slider.searchListingType : null;
+          _city = null;
+        });
+        _loadProperties();
+        break;
+
+      case 'external_url':
+        if (slider.externalUrl == null || slider.externalUrl!.isEmpty) return;
+        final uri = Uri.tryParse(slider.externalUrl!);
+        if (uri != null && await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+        break;
+
+      case 'internal_page':
+        final key = slider.internalPageAppScreenKey;
+        final builder = (key != null && key.isNotEmpty) ? internalPageRegistry[key] : null;
+        if (builder != null) {
+          Navigator.push(context, MaterialPageRoute(builder: builder));
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("This page isn't available in the app yet.")),
+          );
+        }
+        break;
+
+      case 'project':
+      case 'agent_profile':
+      case 'category':
+        // TODO: these still need screens/wiring that don't exist in the app
+        // yet (Project detail screen, an agent profile screen, and
+        // category-based browsing support in PropertyService). Graceful
+        // no-op for now instead of crashing.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("This link isn't supported in the app yet.")),
+          );
+        }
+        break;
+
+      case 'none':
+      default:
+        break; // decorative slide, no destination
+    }
+  }
+
   bool get _hasActiveFilters =>
       _city != null ||
       _propertyTypeId != null ||
@@ -229,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // The slide-in panel from the right.
       endDrawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.85,
-        child: ProfileScreen(onLoggedOut: _handleLoggedOutFromDrawer),
+        child: const ProfileScreen(),
       ),
       appBar: AppBar(
         backgroundColor: AppColors.primary,
@@ -310,34 +360,11 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(right: 12, left: 2),
             child: Builder(
               builder: (innerContext) => GestureDetector(
-                onTap: () => _handleAvatarTap(innerContext),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.person, color: AppColors.primary),
-                    ),
-                    if (!_isLoggedIn)
-                      Container(
-                        margin: const EdgeInsets.only(top: 3),
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          "Login",
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                  ],
+                onTap: () => Scaffold.of(innerContext).openEndDrawer(),
+                child: const CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, color: AppColors.primary),
                 ),
               ),
             ),
@@ -350,35 +377,43 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         cacheExtent: 500, // pre-renders items just outside the screen for smoother scroll
         slivers: [
-          // The search strip. floating: true + snap: true gives the
-          // "hide while scrolling down through the list, reappear instantly
-          // when scrolling back up" behavior, independent of the AppBar
-          // above (which stays pinned since it's the Scaffold's own appBar).
+          // The slider banner with the search bar floating transparently on
+          // top of its blank zone. floating: true + snap: true keeps the
+          // "hide while scrolling down, reappear instantly scrolling up"
+          // behavior, independent of the AppBar above.
           SliverAppBar(
-            backgroundColor: AppColors.searchStripBackground,
+            backgroundColor: Colors.transparent,
             pinned: false,
             floating: true,
             snap: true,
             elevation: 0,
-            toolbarHeight: 70,
+            toolbarHeight: MediaQuery.of(context).size.width / 3, // matches the 3:1 slider aspect ratio
             automaticallyImplyLeading: false,
             actions: const [SizedBox.shrink()], // non-empty but invisible - reliably blocks the automatic endDrawer icon
-            titleSpacing: 12,
-            title: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              // Wrapped in AbsorbPointer so tapping never opens a keyboard
-              // here - it always navigates to the dedicated Filters screen,
-              // which avoids the keyboard/filter overlap problem entirely.
-              child: GestureDetector(
-                onTap: _openSearchFilterScreen,
-                child: AbsorbPointer(
-                  child: AnimatedHintSearchField(
-                    controller: _searchController,
-                    hints: _searchHints,
-                    hasActiveFilters: _hasActiveFilters,
+            flexibleSpace: FutureBuilder<List<SliderModel>>(
+              future: _slidersFuture,
+              builder: (context, snapshot) {
+                final sliders = snapshot.data ?? [];
+                return HeroSliderBanner(
+                  sliders: sliders,
+                  onSliderTap: _handleSliderTap,
+                  searchBarOverlay: GestureDetector(
+                    onTap: _openSearchFilterScreen,
+                    child: AbsorbPointer(
+                      child: AnimatedHintSearchField(
+                        controller: _searchController,
+                        hints: _searchHints,
+                        hasActiveFilters: _hasActiveFilters,
+                        // Fully transparent per your spec - if typed/hint text
+                        // gets hard to read over busier slider images, try
+                        // Colors.white.withValues(alpha: 0.15-0.3) instead.
+                        backgroundColor: Colors.transparent,
+                        borderColor: null,
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
           FutureBuilder<List<Property>>(
@@ -408,26 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     final property = properties[index];
                     return Card(
                       margin: const EdgeInsets.all(8),
-                      child: ListTile(
-                        leading: property.media.any((m) => m.mediaType == 'image')
-                            ? CachedNetworkImage(
-                                imageUrl: property.media.firstWhere((m) => m.mediaType == 'image').file!,
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: AppColors.cardBorder,
-                                ),
-                                errorWidget: (context, url, error) =>
-                                    const Icon(Icons.broken_image, size: 40),
-                              )
-                            : const Icon(Icons.home, size: 40),
-                        title: Text(property.title),
-                        subtitle: Text(
-                            "${property.locality}, ${property.city}\n₹${property.price}"),
-                        isThreeLine: true,
+                      child: InkWell(
                         onTap: () {
                           Navigator.push(
                             context,
@@ -436,6 +452,47 @@ class _HomeScreenState extends State<HomeScreen> {
                                     PropertyDetailScreen(property: property)),
                           );
                         },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              leading: property.media.any((m) => m.mediaType == 'image')
+                                  ? CachedNetworkImage(
+                                      imageUrl: property.media.firstWhere((m) => m.mediaType == 'image').file!,
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => Container(
+                                        width: 60,
+                                        height: 60,
+                                        color: AppColors.cardBorder,
+                                      ),
+                                      errorWidget: (context, url, error) =>
+                                          const Icon(Icons.broken_image, size: 40),
+                                    )
+                                  : const Icon(Icons.home, size: 40),
+                              title: Text(property.title),
+                              subtitle: Text(
+                                  "${property.locality}, ${property.city}\n₹${property.price}"),
+                              isThreeLine: true,
+                            ),
+                            if (property.tags.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: property.tags
+                                      .map((t) => TagChip(
+                                            name: t.name,
+                                            badgeIcon: t.badgeIcon,
+                                            badgeColor: t.badgeColor,
+                                          ))
+                                      .toList(),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     );
                   },

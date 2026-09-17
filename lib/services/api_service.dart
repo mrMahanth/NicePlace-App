@@ -178,6 +178,9 @@ class ApiService {
     return result;
   }
 
+// _refreshAccessToken ke turant baad ye add karo:
+  static Future<bool> refreshAccessToken() => _refreshAccessToken();
+
   static Future<bool> _performRefresh() async {
     final prefs = await SharedPreferences.getInstance();
     final refreshToken = prefs.getString("refresh_token");

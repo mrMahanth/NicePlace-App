@@ -62,6 +62,41 @@ class UserProfileService {
   // failed (network error) - callers should treat null as "couldn't
   // verify" rather than "taken", and let save-time validation be the
   // final word.
+  // ---------- SET DISPLAYED TAG (profile badge) ----------
+  static Future<Map<String, dynamic>> setDisplayedTag(int? tagId) async {
+    try {
+      final response = await ApiService.authorizedRequest((token) {
+        final url = Uri.parse("${ApiService.baseUrl}/auth/me/display-tag/");
+        return http.post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer $token",
+          },
+          body: jsonEncode({"tag_id": tagId}),
+        );
+      });
+
+      if (response.statusCode == 200) {
+        return {"success": true};
+      } else {
+        String errorMsg = "Could not update displayed badge.";
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body["tag_id"] is List) {
+            errorMsg = body["tag_id"][0].toString();
+          }
+        } catch (e) {
+          // keep default errorMsg
+        }
+        return {"success": false, "error": errorMsg};
+      }
+    } catch (e) {
+      return {"success": false, "error": "Login required"};
+    }
+  }
+
+
   static Future<bool?> checkUsernameAvailable(String username) async {
     try {
       final response = await ApiService.authorizedRequest((token) {
@@ -167,18 +202,29 @@ class UserProfileService {
   }
 
   // ---------- UPLOAD PROFILE PHOTO ----------
+  static Future<http.Response> _sendPhotoRequest(String token, File photoFile) async {
+    final url = Uri.parse("${ApiService.baseUrl}/auth/me/photo/");
+    final request = http.MultipartRequest('POST', url);
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(await http.MultipartFile.fromPath('photo', photoFile.path));
+    final streamedResponse = await request.send();
+    return http.Response.fromStream(streamedResponse);
+  }
+
   static Future<Map<String, dynamic>> uploadProfilePhoto(File photoFile) async {
     try {
       final token = await ApiService.getAccessToken();
       if (token == null) return {"success": false, "error": "Login required"};
 
-      final url = Uri.parse("${ApiService.baseUrl}/auth/me/photo/");
-      final request = http.MultipartRequest('POST', url);
-      request.headers['Authorization'] = 'Bearer $token';
-      request.files.add(await http.MultipartFile.fromPath('photo', photoFile.path));
+      var response = await _sendPhotoRequest(token, photoFile);
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 401) {
+        final refreshed = await ApiService.refreshAccessToken();
+        if (refreshed) {
+          final newToken = await ApiService.getAccessToken();
+          response = await _sendPhotoRequest(newToken!, photoFile);
+        }
+      }
 
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};

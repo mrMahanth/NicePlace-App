@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/property_model.dart';
 import '../services/inquiry_service.dart';
 import '../utils/auth_guard.dart';
+import '../widgets/tag_badge.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final Property property;
@@ -301,8 +302,13 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
+                      runSpacing: 6,
                       children: property.tags
-                          .map((t) => Chip(label: Text(t)))
+                          .map((t) => TagChip(
+                                name: t.name,
+                                badgeIcon: t.badgeIcon,
+                                badgeColor: t.badgeColor,
+                              ))
                           .toList(),
                     ),
                     const SizedBox(height: 16),

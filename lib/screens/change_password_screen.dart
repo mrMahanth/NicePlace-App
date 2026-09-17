@@ -194,6 +194,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 }
               },
             ),
+            if (_usernameStatus == _UsernameStatus.taken)
+              const Padding(
+                padding: EdgeInsets.only(top: 4, left: 4),
+                child: Text(
+                  "UserName not available, Please try another one.",
+                  style: TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ),
             if (!_usernameEditable && !_otpSent)
               Align(
                 alignment: Alignment.centerRight,
@@ -234,9 +242,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => setState(() => _otpSent = false),
-                child: const Text("Edit details"),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () => setState(() => _otpSent = false),
+                    child: const Text("Edit details"),
+                  ),
+                  TextButton(
+                    onPressed: _isSubmitting ? null : _handleSendOtp,
+                    child: const Text("Resend OTP"),
+                  ),
+                ],
               ),
             ],
             const SizedBox(height: 16),

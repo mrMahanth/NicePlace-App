@@ -27,6 +27,30 @@ class PropertyMedia {
   }
 }
 
+
+class PropertyTagInfo {
+  final int id;
+  final String name;
+  final String badgeIcon;
+  final String? badgeColor;
+
+  PropertyTagInfo({
+    required this.id,
+    required this.name,
+    this.badgeIcon = 'none',
+    this.badgeColor,
+  });
+
+  factory PropertyTagInfo.fromJson(Map<String, dynamic> json) {
+    return PropertyTagInfo(
+      id: json['tag_id'] ?? 0,
+      name: json['tag_name'] ?? '',
+      badgeIcon: json['badge_icon'] ?? 'none',
+      badgeColor: json['badge_color'],
+    );
+  }
+}
+
 // Generic class for dynamic attributes (BHK, Furnishing, etc.)
 // New attributes added from admin panel will automatically work here.
 class PropertyAttribute {
@@ -70,7 +94,7 @@ class Property {
   final String? ownerPhone;
   final List<PropertyMedia> media;
   final List<PropertyAttribute> attributeValues;
-  final List<String> tags;
+  final List<PropertyTagInfo> tags;
 
   Property({
     required this.id,
@@ -123,7 +147,7 @@ class Property {
           .map((a) => PropertyAttribute.fromJson(a))
           .toList(),
       tags: (json['tags'] as List<dynamic>? ?? [])
-          .map((t) => t['tag_name'].toString())
+          .map((t) => PropertyTagInfo.fromJson(t))
           .toList(),
     );
   }

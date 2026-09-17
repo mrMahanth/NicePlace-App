@@ -7,11 +7,14 @@ import '../utils/auth_guard.dart';
 import 'inquiries_list_screen.dart';
 import 'my_profile_screen.dart';
 import 'tags/tags_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'photo_viewer_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLoggedOut;
+  final VoidCallback? onProfileUpdated;
 
-  const ProfileScreen({super.key, this.onLoggedOut});
+  const ProfileScreen({super.key, this.onLoggedOut, this.onProfileUpdated});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -22,8 +25,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isChecking = true;
   bool _appLockEnabled = false;
   String? _firstName;
+  String? _lastName;
   String? _username;
   String? _phone;
+  String? _profilePhoto;
+
+  String get _fullName => "${_firstName ?? ''} ${_lastName ?? ''}".trim();
 
   @override
   void initState() {
@@ -36,15 +43,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final lockEnabled = await AppLockService.isAppLockEnabled();
 
     String? firstName;
+    String? lastName;
     String? username;
     String? phone;
+    String? profilePhoto;
     if (token != null) {
       final profileResult = await UserProfileService.fetchMyProfile();
       if (profileResult['success'] == true) {
         final profile = profileResult['data'] as UserProfileModel;
         firstName = profile.firstName;
+        lastName = profile.lastName;
         username = profile.username;
         phone = profile.phone;
+        profilePhoto = profile.profilePhoto;
       }
     }
 
@@ -53,11 +64,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoggedIn = token != null;
         _appLockEnabled = lockEnabled;
         _firstName = firstName;
+        _lastName = lastName;
         _username = username;
         _phone = phone;
+        _profilePhoto = profilePhoto;
         _isChecking = false;
       });
     }
+    widget.onProfileUpdated?.call();
   }
 
   // Heuristic: OTP-only users have username == phone (set automatically at
@@ -156,18 +170,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Column(
         children: [
           const SizedBox(height: 24),
-          const CircleAvatar(
-            radius: 50,
-            child: Icon(Icons.person, size: 50),
+          GestureDetector(
+            onTap: _isLoggedIn
+                ? () async {
+                    final changed = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PhotoViewerScreen(photoUrl: _profilePhoto),
+                      ),
+                    );
+                    if (changed == true) _checkLoginStatus();
+                  }
+                : null,
+            child: CircleAvatar(
+              radius: 50,
+              backgroundColor: Colors.grey.shade200,
+              backgroundImage: _profilePhoto != null
+                  ? CachedNetworkImageProvider(_profilePhoto!)
+                  : null,
+              child: _profilePhoto == null
+                  ? const Icon(Icons.person, size: 50)
+                  : null,
+            ),
           ),
           const SizedBox(height: 16),
-          Text(
-            _isLoggedIn
-                ? ((_firstName != null && _firstName!.isNotEmpty)
-                    ? _firstName!
-                    : "Your Profile")
-                : "Browsing as guest",
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              _isLoggedIn
+                  ? (_fullName.isNotEmpty ? _fullName : "Your Profile")
+                  : "Browsing as guest",
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 32),
 

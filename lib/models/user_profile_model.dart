@@ -2,14 +2,42 @@ class UserTagInfo {
   final int id;
   final String name;
   final String description;
+  final String badgeIcon;
+  final String? badgeColor;
 
-  UserTagInfo({required this.id, required this.name, required this.description});
+  UserTagInfo({
+    required this.id,
+    required this.name,
+    required this.description,
+    this.badgeIcon = 'none',
+    this.badgeColor,
+  });
 
   factory UserTagInfo.fromJson(Map<String, dynamic> json) {
     return UserTagInfo(
       id: json['id'],
       name: json['name'] ?? '',
       description: json['description'] ?? '',
+      badgeIcon: json['badge_icon'] ?? 'none',
+      badgeColor: json['badge_color'],
+    );
+  }
+}
+
+class DisplayedTag {
+  final int id;
+  final String name;
+  final String badgeIcon;
+  final String? badgeColor;
+
+  DisplayedTag({required this.id, required this.name, required this.badgeIcon, this.badgeColor});
+
+  factory DisplayedTag.fromJson(Map<String, dynamic> json) {
+    return DisplayedTag(
+      id: json['id'],
+      name: json['name'] ?? '',
+      badgeIcon: json['badge_icon'] ?? 'none',
+      badgeColor: json['badge_color'],
     );
   }
 }
@@ -35,6 +63,7 @@ class UserProfileModel {
   final bool isSuperuser;
   final List<String> permissions;
   final List<UserTagInfo> tags;
+  final DisplayedTag? displayedTag;
 
   UserProfileModel({
     this.profilePhoto,
@@ -55,6 +84,7 @@ class UserProfileModel {
     required this.isSuperuser,
     required this.permissions,
     required this.tags,
+    this.displayedTag,
   });
 
   // Convenience getter - true if this user can manage tags (superuser or has the specific permission)
@@ -85,6 +115,9 @@ class UserProfileModel {
       tags: (json['tags'] as List<dynamic>? ?? [])
           .map((t) => UserTagInfo.fromJson(t))
           .toList(),
+      displayedTag: json['displayed_tag'] != null
+          ? DisplayedTag.fromJson(json['displayed_tag'])
+          : null,
     );
   }
 }

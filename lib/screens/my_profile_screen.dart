@@ -1,15 +1,15 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import '../models/user_profile_model.dart';
+import '../utils/photo_upload_helper.dart';
+import 'photo_viewer_screen.dart';
 import '../models/tag_model.dart';
 import '../services/user_profile_service.dart';
 import '../services/tag_service.dart';
 import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
 import 'tags/tag_apply_screen.dart';
+import '../widgets/tag_badge.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -23,6 +23,17 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   bool _isUploadingPhoto = false;
   UserProfileModel? _profile;
   List<Tag> _availableToEarn = [];
+
+  Future<void> _setDisplayedTag(int? tagId) async {
+    final result = await UserProfileService.setDisplayedTag(tagId);
+    if (result['success'] == true) {
+      _loadAll();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? "Could not update displayed badge.")),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -58,54 +69,13 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   }
 
   Future<void> _handleChangePhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text("Take Photo"),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text("Choose from Gallery"),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null) return;
-
-    final picked = await ImagePicker().pickImage(source: source, imageQuality: 90);
-    if (picked == null) return;
-
-    final cropped = await ImageCropper().cropImage(
-      sourcePath: picked.path,
-      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Adjust Photo',
-          lockAspectRatio: true,
-          aspectRatioPresets: const [CropAspectRatioPreset.square],
-        ),
-        IOSUiSettings(
-          title: 'Adjust Photo',
-          aspectRatioLockEnabled: true,
-        ),
-      ],
-    );
-    if (cropped == null) return;
-
     setState(() => _isUploadingPhoto = true);
-    final result = await UserProfileService.uploadProfilePhoto(File(cropped.path));
+    final success = await PhotoUploadHelper.pickCropAndUpload(context);
     setState(() => _isUploadingPhoto = false);
 
-    if (result['success'] == true) {
+    if (success == true) {
       _loadAll();
-    } else if (mounted) {
+    } else if (success == false && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Could not update photo. Please try again.")),
       );
@@ -212,23 +182,34 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             Center(
               child: Stack(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: profile.profilePhoto != null
-                        ? CachedNetworkImageProvider(profile.profilePhoto!)
-                        : null,
-                    child: profile.profilePhoto == null
-                        ? const Icon(Icons.person, size: 50)
-                        : null,
+                  GestureDetector(
+                    onTap: () async {
+                      final changed = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PhotoViewerScreen(photoUrl: profile.profilePhoto),
+                        ),
+                      );
+                      if (changed == true) _loadAll();
+                    },
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: profile.profilePhoto != null
+                          ? CachedNetworkImageProvider(profile.profilePhoto!)
+                          : null,
+                      child: profile.profilePhoto == null
+                          ? const Icon(Icons.person, size: 50)
+                          : null,
+                    ),
                   ),
                   Positioned(
-                    bottom: 0,
+                    top: 0,
                     right: 0,
                     child: GestureDetector(
                       onTap: _isUploadingPhoto ? null : _handleChangePhoto,
                       child: CircleAvatar(
-                        radius: 16,
+                        radius: 15,
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         child: _isUploadingPhoto
                             ? const SizedBox(
@@ -236,10 +217,20 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                                 height: 14,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                            : const Icon(Icons.camera_alt, size: 15, color: Colors.white),
                       ),
                     ),
                   ),
+                  if (profile.displayedTag != null)
+                    Positioned(
+                      bottom: 2,
+                      right: 2,
+                      child: TagBadgeIcon(
+                        badgeIcon: profile.displayedTag!.badgeIcon,
+                        badgeColor: profile.displayedTag!.badgeColor,
+                        size: 22,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -290,10 +281,27 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                   else
                     ...profile.tags.map((t) => ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.local_offer, color: Colors.green),
+                          leading: t.badgeIcon != 'none'
+                              ? TagBadgeIcon(badgeIcon: t.badgeIcon, badgeColor: t.badgeColor, size: 28)
+                              : const Icon(Icons.local_offer, color: Colors.green),
                           title: Text(t.name),
                           subtitle: t.description.isNotEmpty ? Text(t.description) : null,
+                          trailing: t.badgeIcon != 'none'
+                              ? Radio<int?>(
+                                  value: t.id,
+                                  groupValue: profile.displayedTag?.id,
+                                  onChanged: _setDisplayedTag,
+                                )
+                              : null,
                         )),
+                  if (profile.tags.any((t) => t.badgeIcon != 'none') && profile.displayedTag != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => _setDisplayedTag(null),
+                        child: const Text("Remove badge from profile"),
+                      ),
+                    ),
                   const Divider(),
                   const SizedBox(height: 4),
                   const Text("Available to Earn", style: TextStyle(fontWeight: FontWeight.w600)),
