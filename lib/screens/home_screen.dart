@@ -20,6 +20,9 @@ import '../models/slider_model.dart';
 import '../services/slider_service.dart';
 import '../utils/internal_page_registry.dart';
 import '../widgets/tag_badge.dart';
+import '../models/user_profile_model.dart';
+import '../services/api_service.dart';
+import '../services/user_profile_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +34,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Property>> _propertiesFuture;
   int _unreadCount = 0;
+  bool _avatarLoggedIn = false;
+  String? _avatarPhoto;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -63,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadUnreadCount();
     _refreshLocation();
     _slidersFuture = SliderService.fetchActiveSliders();
+    _loadAvatarInfo();
   }
 
   @override
@@ -89,6 +95,23 @@ class _HomeScreenState extends State<HomeScreen> {
     final count = await NotificationService.fetchUnreadCount();
     if (mounted) {
       setState(() => _unreadCount = count);
+    }
+  }
+
+  Future<void> _loadAvatarInfo() async {
+    final token = await ApiService.getAccessToken();
+    String? photo;
+    if (token != null) {
+      final result = await UserProfileService.fetchMyProfile();
+      if (result['success'] == true) {
+        photo = (result['data'] as UserProfileModel).profilePhoto;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _avatarLoggedIn = token != null;
+        _avatarPhoto = photo;
+      });
     }
   }
 
@@ -279,7 +302,10 @@ class _HomeScreenState extends State<HomeScreen> {
       // The slide-in panel from the right.
       endDrawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.85,
-        child: const ProfileScreen(),
+        child: ProfileScreen(
+          onProfileUpdated: _loadAvatarInfo,
+          onLoggedOut: _loadAvatarInfo,
+        ),
       ),
       appBar: AppBar(
         backgroundColor: AppColors.primary,
@@ -359,13 +385,45 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12, left: 2),
             child: Builder(
-              builder: (innerContext) => GestureDetector(
-                onTap: () => Scaffold.of(innerContext).openEndDrawer(),
-                child: const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: AppColors.primary),
-                ),
+              builder: (innerContext) => Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  GestureDetector(
+                    onTap: () => Scaffold.of(innerContext).openEndDrawer(),
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white,
+                      backgroundImage: _avatarPhoto != null
+                          ? CachedNetworkImageProvider(_avatarPhoto!)
+                          : null,
+                      child: _avatarPhoto == null
+                          ? const Icon(Icons.person, color: AppColors.primary)
+                          : null,
+                    ),
+                  ),
+                  if (!_avatarLoggedIn)
+                    Positioned(
+                      bottom: -2,
+                      left: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () => AuthGuard.ensureLoggedIn(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: const Text(
+                            'Login',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -377,7 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         cacheExtent: 500, // pre-renders items just outside the screen for smoother scroll
         slivers: [
-      // === Replace both SliverToBoxAdapter blocks with this ===
+          // === Replace both SliverToBoxAdapter blocks with this ===
           SliverAppBar(
             backgroundColor: AppColors.searchStripBackground,
             pinned: false,
@@ -443,7 +501,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) {
                     final property = properties[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
                       child: InkWell(
                         onTap: () {
                           Navigator.push(

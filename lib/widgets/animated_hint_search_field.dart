@@ -160,13 +160,18 @@ class _AnimatedHintSearchFieldState extends State<AnimatedHintSearchField>
     super.dispose();
   }
 
-  Widget _hintText(String text) => Align(
+    Widget _hintText(String text) => Align(
         alignment: Alignment.centerLeft,
         child: Text(
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: widget.fontSize, color: AppColors.textMuted),
+          // style: TextStyle(fontSize: widget.fontSize, color: AppColors.textMuted),
+          style: TextStyle(
+            fontSize: widget.fontSize,
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600, // === bold ticker text ===
+          ),
         ),
       );
 
