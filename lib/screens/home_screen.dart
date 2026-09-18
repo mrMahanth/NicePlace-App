@@ -35,11 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   static const List<String> _searchHints = [
-    'Search "2BHK Flats in SK Puri"',
-    'Search "Banquet Halls Nearby"',
-    'Search "Space for Office/Bank"',
-    'Search "Plots in Punpun"',
-    'Search "Hostels Near College"',
+    '"2BHK Flats in SK Puri"',
+    '"Banquet Halls Nearby"',
+    '"Space for Office/Bank"',
+    '"Plots in Punpun"',
+    '"Hostels Near College"',
   ];
 
   late Future<List<SliderModel>> _slidersFuture;
@@ -377,41 +377,42 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         cacheExtent: 500, // pre-renders items just outside the screen for smoother scroll
         slivers: [
-          // The slider banner with the search bar floating transparently on
-          // top of its blank zone. floating: true + snap: true keeps the
-          // "hide while scrolling down, reappear instantly scrolling up"
-          // behavior, independent of the AppBar above.
+      // === Replace both SliverToBoxAdapter blocks with this ===
           SliverAppBar(
-            backgroundColor: Colors.transparent,
+            backgroundColor: AppColors.searchStripBackground,
             pinned: false,
             floating: true,
             snap: true,
             elevation: 0,
-            toolbarHeight: MediaQuery.of(context).size.width / 3, // matches the 3:1 slider aspect ratio
+            toolbarHeight: 64, // search strip's own height, NOT the slider's
             automaticallyImplyLeading: false,
-            actions: const [SizedBox.shrink()], // non-empty but invisible - reliably blocks the automatic endDrawer icon
-            flexibleSpace: FutureBuilder<List<SliderModel>>(
+            actions: const [SizedBox.shrink()],
+            flexibleSpace: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: GestureDetector(
+                  onTap: _openSearchFilterScreen,
+                  child: AbsorbPointer(
+                    child: AnimatedHintSearchField(
+                      controller: _searchController,
+                      hints: _searchHints,
+                      hasActiveFilters: _hasActiveFilters,
+                      backgroundColor: AppColors.background,
+                      borderColor: null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: FutureBuilder<List<SliderModel>>(
               future: _slidersFuture,
               builder: (context, snapshot) {
                 final sliders = snapshot.data ?? [];
                 return HeroSliderBanner(
                   sliders: sliders,
                   onSliderTap: _handleSliderTap,
-                  searchBarOverlay: GestureDetector(
-                    onTap: _openSearchFilterScreen,
-                    child: AbsorbPointer(
-                      child: AnimatedHintSearchField(
-                        controller: _searchController,
-                        hints: _searchHints,
-                        hasActiveFilters: _hasActiveFilters,
-                        // Fully transparent per your spec - if typed/hint text
-                        // gets hard to read over busier slider images, try
-                        // Colors.white.withValues(alpha: 0.15-0.3) instead.
-                        backgroundColor: Colors.transparent,
-                        borderColor: null,
-                      ),
-                    ),
-                  ),
                 );
               },
             ),
@@ -442,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) {
                     final property = properties[index];
                     return Card(
-                      margin: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       child: InkWell(
                         onTap: () {
                           Navigator.push(

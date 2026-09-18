@@ -5,13 +5,15 @@ import 'package:google_fonts/google_fonts.dart';
 // this is the only file you need to touch.
 class AppColors {
   static const Color primary = Color(0xFFFF6F5E); // CTAs, price tags, highlights
-  static const Color background = Color(0xFFF2FAFC); // screens, cards
+  static const Color primarylight = Color(0xFFFF8C7D);
+  static const Color background = Color.fromARGB(255, 251, 254, 255); // screens, cards
   static const Color accent = Color(0xFF1D3FD6); // links, secondary buttons, active tab
+  static const Color accentlight = Color(0xFFC2DEFA);
   static const Color textPrimary = Color(0xFF0F1B2D);
   static const Color textMuted = Color(0xFF5C6B7A);
   static const Color cardBorder = Color(0xFFDDEBF0);
   static const Color success = Color(0xFF2AA876); // use sparingly
-  static const Color searchStripBackground = Color(0xFFFFF1EF); // pale tint of primary, for the search strip
+  static const Color searchStripBackground = Color.fromARGB(255, 253, 224, 220); // pale tint of primary, for the search strip
 }
 
 class AppTheme {

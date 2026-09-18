@@ -3,44 +3,33 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/slider_model.dart';
 
-/// A rotating image banner fetched live from the backend, with the search
-/// bar floating on top of its blank top zone. Matches the 1125x375 (3:1
-/// aspect ratio) asset spec:
-/// - top 100/375 (~26.7%) of the image is the blank/gradient zone the
-///   search bar sits over
-/// - bottom 275/375 (~73.3%) is the actual marketing artwork
-///
-/// The search bar's own background should be passed in as transparent
-/// (or semi-transparent) from the caller so the banner colors show through.
+/// A plain rotating image carousel, shown below the search bar (no overlay).
+/// Aspect ratio: 16:9. Recommended asset sizes (any of these):
+/// - 1280x720 (HD)
+/// - 1920x1080 (Full HD - most common)
+/// - 2560x1440 (2K)
+/// - 3840x2160 (4K)
 class HeroSliderBanner extends StatelessWidget {
   final List<SliderModel> sliders;
-  final Widget searchBarOverlay;
   final ValueChanged<SliderModel> onSliderTap;
 
   const HeroSliderBanner({
     super.key,
     required this.sliders,
-    required this.searchBarOverlay,
     required this.onSliderTap,
   });
-
-  static const double _searchBarHeight = 46; // matches AnimatedHintSearchField's Container height
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final sliderHeight = width / 3; // 1125:375 asset ratio = 3:1
-    final topZoneHeight = sliderHeight * (100 / 375); // blank zone reserved for the search bar
+    final sliderHeight = width * 9 / 16; // 16:9 aspect ratio
 
     return SizedBox(
       height: sliderHeight,
       width: width,
-      child: Stack(
-        children: [
-          if (sliders.isEmpty)
-            Container(width: width, height: sliderHeight, color: Colors.grey.shade200)
-          else
-            CarouselSlider.builder(
+      child: sliders.isEmpty
+          ? Container(width: width, height: sliderHeight, color: Colors.grey.shade200)
+          : CarouselSlider.builder(
               itemCount: sliders.length,
               itemBuilder: (context, index, realIndex) {
                 final slider = sliders[index];
@@ -70,14 +59,6 @@ class HeroSliderBanner extends StatelessWidget {
                 enableInfiniteScroll: sliders.length > 1,
               ),
             ),
-          Positioned(
-            top: (topZoneHeight - _searchBarHeight) / 2,
-            left: 16,
-            right: 16,
-            child: searchBarOverlay,
-          ),
-        ],
-      ),
     );
   }
 }
