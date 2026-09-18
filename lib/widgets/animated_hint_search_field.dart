@@ -18,6 +18,8 @@ class AnimatedHintSearchField extends StatefulWidget {
   final double fontSize; // change this to resize the typed/hint text
   final Duration rotateInterval; // change this to speed up/slow down the ticker
   final bool autofocus; // set true to open the keyboard immediately on screen load
+  final Color backgroundColor;   // add
+  final Color? borderColor;
 
   const AnimatedHintSearchField({
     super.key,
@@ -31,6 +33,8 @@ class AnimatedHintSearchField extends StatefulWidget {
     this.fontSize = 16,
     this.rotateInterval = const Duration(seconds: 2),
     this.autofocus = false,
+    this.backgroundColor = Colors.white,   // add, sensible default
+    this.borderColor,
   });
 
   @override
@@ -174,9 +178,11 @@ class _AnimatedHintSearchFieldState extends State<AnimatedHintSearchField>
     return Container(
       height: 46,
       decoration: BoxDecoration(
-        color: Colors.white, // change this to recolor the search box itself
+        color: widget.backgroundColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(
+          color: widget.borderColor ?? AppColors.cardBorder,
+        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(

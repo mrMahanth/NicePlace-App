@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/post_property_type_screen.dart';
 
 /// Maps each Slider's `internal_page_app_screen_key` (set by the admin in
 /// the InternalPage model) to an actual Flutter screen.
@@ -14,4 +15,5 @@ import 'package:flutter/material.dart';
 /// 'why_choose_us': (context) => const WhyChooseUsScreen(),
 final Map<String, WidgetBuilder> internalPageRegistry = {
   // Add entries here as you build each page.
+  'post_property': (context) => const PostPropertyTypeScreen(),
 };

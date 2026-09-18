@@ -24,6 +24,7 @@ dependencies:
   geocoding: ^5.0.0
   speech_to_text: ^7.4.0
   cached_network_image: ^4.0.0
+  carousel_slider: ^5.1.2
   file_picker: ^12.2.0
   local_auth: ^2.3.0
 
