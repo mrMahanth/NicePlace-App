@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unreadCount = 0;
   bool _avatarLoggedIn = false;
   String? _avatarPhoto;
+  DisplayedTag? _avatarTag;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -101,16 +102,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadAvatarInfo() async {
     final token = await ApiService.getAccessToken();
     String? photo;
+    DisplayedTag? displayedTag;
     if (token != null) {
       final result = await UserProfileService.fetchMyProfile();
       if (result['success'] == true) {
-        photo = (result['data'] as UserProfileModel).profilePhoto;
+        final profile = result['data'] as UserProfileModel;
+        photo = profile.profilePhoto;
+        displayedTag = profile.displayedTag;
       }
     }
     if (mounted) {
       setState(() {
         _avatarLoggedIn = token != null;
         _avatarPhoto = photo;
+        _avatarTag = displayedTag;
       });
     }
   }
@@ -401,13 +406,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           : null,
                     ),
                   ),
+                  if (_avatarLoggedIn && _avatarTag != null)
+                    Positioned(
+                      bottom: -1,
+                      right: -1,
+                      child: TagBadgeIcon(
+                        badgeIcon: _avatarTag!.badgeIcon,
+                        badgeColor: _avatarTag!.badgeColor,
+                        size: 14,
+                      ),
+                    ),
                   if (!_avatarLoggedIn)
                     Positioned(
                       bottom: -2,
                       left: 0,
                       right: 0,
                       child: GestureDetector(
-                        onTap: () => AuthGuard.ensureLoggedIn(context),
+                        onTap: () async {
+                          final loggedIn = await AuthGuard.ensureLoggedIn(context);
+                          if (loggedIn) _loadAvatarInfo();
+                        },
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
                           decoration: BoxDecoration(

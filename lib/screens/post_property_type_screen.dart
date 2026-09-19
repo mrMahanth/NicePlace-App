@@ -4,6 +4,7 @@ import '../models/property_category_model.dart';
 import '../services/property_type_service.dart';
 import '../services/property_service.dart';
 import 'post_property_basic_details_screen.dart';
+import '../utils/auth_guard.dart';
 
 class PostPropertyTypeScreen extends StatefulWidget {
   const PostPropertyTypeScreen({super.key});
@@ -116,6 +117,11 @@ class _PostPropertyTypeScreenState extends State<PostPropertyTypeScreen> {
   Future<void> _onTypeSelected(PropertyTypeModel type) async {
     if (_isCreatingDraft) return;
 
+    final loggedIn = await AuthGuard.ensureLoggedIn(
+      context,
+      message: "Please Login to Post a Property",
+    );
+    if (!loggedIn || !mounted) return;
     setState(() => _isCreatingDraft = true);
 
     try {

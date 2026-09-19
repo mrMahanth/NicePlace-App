@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/tag_model.dart';
 import '../../services/tag_service.dart';
 import 'tag_apply_screen.dart';
+import '../../utils/tag_status_helper.dart';
 
 class TagsScreen extends StatefulWidget {
   const TagsScreen({super.key});
@@ -49,6 +50,7 @@ class _AvailableTagsTabState extends State<_AvailableTagsTab> {
   bool isLoading = true;
   String errorMessage = '';
   List<Tag> tags = [];
+  Map<int, TagRequest> _requestByTagId = {};
 
   @override
   void initState() {
@@ -62,11 +64,15 @@ class _AvailableTagsTabState extends State<_AvailableTagsTab> {
       errorMessage = '';
     });
 
-    final result = await TagService.fetchAvailableTags();
+    final tagsResult = await TagService.fetchAvailableTags();
+    final requestsResult = await TagService.fetchMyTagRequests();
 
-    if (result['success']) {
+    if (tagsResult['success']) {
       setState(() {
-        tags = result['data'];
+        tags = tagsResult['data'];
+        _requestByTagId = requestsResult['success'] == true
+            ? TagStatusHelper.buildRequestMap(requestsResult['data'])
+            : {};
         isLoading = false;
       });
     } else {
@@ -75,6 +81,14 @@ class _AvailableTagsTabState extends State<_AvailableTagsTab> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _openApply(Tag tag) async {
+    final applied = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => TagApplyScreen(tag: tag)),
+    );
+    if (applied == true) _load();
   }
 
   @override
@@ -98,6 +112,12 @@ class _AvailableTagsTabState extends State<_AvailableTagsTab> {
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final tag = tags[index];
+                final (trailing, onTap) = TagStatusHelper.rowStatus(
+                  context: context,
+                  tag: tag,
+                  request: _requestByTagId[tag.id],
+                  onApply: _openApply,
+                );
                 return ListTile(
                   leading: const Icon(Icons.local_offer_outlined),
                   title: Text(tag.name),
@@ -106,17 +126,8 @@ class _AvailableTagsTabState extends State<_AvailableTagsTab> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    final applied = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(builder: (context) => TagApplyScreen(tag: tag)),
-                    );
-                    if (applied == true) {
-                      // Could show a message here, but the "My Requests" tab
-                      // will reflect it next time it's opened.
-                    }
-                  },
+                  trailing: trailing,
+                  onTap: onTap,
                 );
               },
             ),

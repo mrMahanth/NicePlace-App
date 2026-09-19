@@ -9,6 +9,7 @@ import 'my_profile_screen.dart';
 import 'tags/tags_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'photo_viewer_screen.dart';
+import '../widgets/tag_badge.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLoggedOut;
@@ -29,6 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _username;
   String? _phone;
   String? _profilePhoto;
+  DisplayedTag? _displayedTag;
 
   String get _fullName => "${_firstName ?? ''} ${_lastName ?? ''}".trim();
 
@@ -47,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? username;
     String? phone;
     String? profilePhoto;
+    DisplayedTag? displayedTag;
     if (token != null) {
       final profileResult = await UserProfileService.fetchMyProfile();
       if (profileResult['success'] == true) {
@@ -56,6 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         username = profile.username;
         phone = profile.phone;
         profilePhoto = profile.profilePhoto;
+        displayedTag = profile.displayedTag;
       }
     }
 
@@ -68,23 +72,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _username = username;
         _phone = phone;
         _profilePhoto = profilePhoto;
+        _displayedTag = displayedTag;
         _isChecking = false;
       });
     }
     widget.onProfileUpdated?.call();
   }
-
-  // Heuristic: OTP-only users have username == phone (set automatically at
-  // signup). Once they use "Set Username", the two diverge. Edge case: if
-  // someone deliberately sets their username to their own phone number,
-  // this row would reappear - acceptable for now, flagged for later if a
-  // dedicated has_custom_username flag is ever wanted.
-  bool get _hasCustomUsername =>
-      _username != null &&
-      _username!.isNotEmpty &&
-      _phone != null &&
-      _phone!.isNotEmpty &&
-      _username != _phone;
 
   Future<void> _handleLoginTap() async {
     final loggedIn = await AuthGuard.ensureLoggedIn(context);
@@ -170,28 +163,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Column(
         children: [
           const SizedBox(height: 24),
-          GestureDetector(
-            onTap: _isLoggedIn
-                ? () async {
-                    final changed = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PhotoViewerScreen(photoUrl: _profilePhoto),
-                      ),
-                    );
-                    if (changed == true) _checkLoginStatus();
-                  }
-                : null,
-            child: CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage: _profilePhoto != null
-                  ? CachedNetworkImageProvider(_profilePhoto!)
-                  : null,
-              child: _profilePhoto == null
-                  ? const Icon(Icons.person, size: 50)
-                  : null,
-            ),
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: _isLoggedIn
+                    ? () async {
+                        final changed = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PhotoViewerScreen(photoUrl: _profilePhoto),
+                          ),
+                        );
+                        if (changed == true) _checkLoginStatus();
+                      }
+                    : null,
+                child: CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.grey.shade200,
+                  backgroundImage: _profilePhoto != null
+                      ? CachedNetworkImageProvider(_profilePhoto!)
+                      : null,
+                  child: _profilePhoto == null
+                      ? const Icon(Icons.person, size: 50)
+                      : null,
+                ),
+              ),
+              if (_isLoggedIn && _displayedTag != null)
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: TagBadgeIcon(
+                    badgeIcon: _displayedTag!.badgeIcon,
+                    badgeColor: _displayedTag!.badgeColor,
+                    size: 22,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           Padding(

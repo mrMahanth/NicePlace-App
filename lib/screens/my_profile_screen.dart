@@ -10,6 +10,8 @@ import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
 import 'tags/tag_apply_screen.dart';
 import '../widgets/tag_badge.dart';
+import '../models/tag_model.dart';
+import '../utils/tag_status_helper.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -41,11 +43,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     _loadAll();
   }
 
+  Map<int, TagRequest> _requestByTagId = {};
+
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
 
     final profileResult = await UserProfileService.fetchMyProfile();
     final tagsResult = await TagService.fetchAvailableTags();
+    final requestsResult = await TagService.fetchMyTagRequests();
 
     if (!mounted) return;
 
@@ -64,6 +69,9 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     setState(() {
       _profile = profile;
       _availableToEarn = available;
+      _requestByTagId = requestsResult['success'] == true
+          ? TagStatusHelper.buildRequestMap(requestsResult['data'])
+          : {};
       _isLoading = false;
     });
   }
@@ -203,24 +211,25 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                           : null,
                     ),
                   ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: _isUploadingPhoto ? null : _handleChangePhoto,
-                      child: CircleAvatar(
-                        radius: 15,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: _isUploadingPhoto
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.camera_alt, size: 15, color: Colors.white),
+                  if (profile.tags.isEmpty)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _isUploadingPhoto ? null : _handleChangePhoto,
+                        child: CircleAvatar(
+                          radius: 15,
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          child: _isUploadingPhoto
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.camera_alt, size: 15, color: Colors.white),
+                        ),
                       ),
                     ),
-                  ),
                   if (profile.displayedTag != null)
                     Positioned(
                       bottom: 2,
@@ -312,16 +321,22 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       child: Text("Nothing available right now.", style: TextStyle(color: Colors.grey.shade600)),
                     )
                   else
-                    ..._availableToEarn.map((tag) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.local_offer_outlined),
-                          title: Text(tag.name),
-                          subtitle: tag.description.isNotEmpty ? Text(tag.description) : null,
-                          trailing: TextButton(
-                            onPressed: () => _applyForTag(tag),
-                            child: const Text("Apply"),
-                          ),
-                        )),
+                    ..._availableToEarn.map((tag) {
+                      final (trailing, onTap) = TagStatusHelper.rowStatus(
+                        context: context,
+                        tag: tag,
+                        request: _requestByTagId[tag.id],
+                        onApply: _applyForTag,
+                      );
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.local_offer_outlined),
+                        title: Text(tag.name),
+                        subtitle: tag.description.isNotEmpty ? Text(tag.description) : null,
+                        trailing: trailing,
+                        onTap: onTap,
+                      );
+                    }),
                 ],
               ),
             ),
