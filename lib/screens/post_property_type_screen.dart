@@ -3,8 +3,10 @@ import '../models/property_type_model.dart';
 import '../models/property_category_model.dart';
 import '../services/property_type_service.dart';
 import '../services/property_service.dart';
-import 'post_property_basic_details_screen.dart';
+import '../services/project_service.dart';
 import '../utils/auth_guard.dart';
+import 'post_property_basic_details_screen.dart';
+import 'post_project_details_screen.dart';
 
 class PostPropertyTypeScreen extends StatefulWidget {
   const PostPropertyTypeScreen({super.key});
@@ -91,27 +93,51 @@ class _PostPropertyTypeScreenState extends State<PostPropertyTypeScreen> {
     if (choice == 'individual') {
       _onTypeSelected(type);
     } else if (choice == 'project') {
-      _showComingSoonDialog();
+      _onProjectTypeSelected(type);
     }
     // choice == null (Cancel ya dialog ke bahar tap) -> kuch nahi karte
   }
 
-  Future<void> _showComingSoonDialog() async {
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Coming Soon"),
-        content: const Text(
-          "Posting a property as part of a Project will be available soon.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Back"),
-          ),
-        ],
-      ),
+  Future<void> _onProjectTypeSelected(PropertyTypeModel type) async {
+    if (_isCreatingDraft) return;
+
+    final loggedIn = await AuthGuard.ensureLoggedIn(
+      context,
+      message: "Please Login to Post a Project",
     );
+    if (!loggedIn || !mounted) return;
+
+    setState(() => _isCreatingDraft = true);
+
+    try {
+      final result = await ProjectService.createDraftProject(type.id);
+
+      if (!mounted) return;
+
+      if (result["success"] == true) {
+        final projectId = result["data"]["id"];
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PostProjectDetailsScreen(projectId: projectId),
+          ),
+        );
+      } else {
+        debugPrint("createDraftProject failed: ${result["error"]}");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not start project listing. Please try again.")),
+        );
+      }
+    } catch (e) {
+      debugPrint("createDraftProject exception: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Something went wrong: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCreatingDraft = false);
+    }
   }
 
   Future<void> _onTypeSelected(PropertyTypeModel type) async {

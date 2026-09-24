@@ -441,4 +441,33 @@ class PropertyService {
       return {"success": false, "error": response.body};
     }
   }
+
+    // ---------- Project ke units fetch karna ----------
+  static Future<List<Map<String, dynamic>>> fetchUnitsForProject(int projectId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/my_properties/?project=$projectId");
+      return http.get(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception("Failed to load units");
+    }
+  }
+
+  // ---------- Property/Unit delete karna (soft-delete, backend handle karta hai) ----------
+  static Future<Map<String, dynamic>> deleteProperty(int propertyId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/");
+      return http.delete(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
 }
