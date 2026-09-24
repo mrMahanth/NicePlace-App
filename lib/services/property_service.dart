@@ -96,19 +96,22 @@ class PropertyService {
     }
   }
 
-  // ---------- UPDATED: Ab 3-tier pricing (Price Group) support karta hai ----------
   static Future<Map<String, dynamic>> updatePricing({
     required int propertyId,
-    required String listingType, // 'rent' or 'sale'
+    required String listingType,
     required String priceUnit,
-    // Rent fields
     double? rentAmount,
+    bool rentNegotiable = false,
     double? securityDeposit,
+    bool securityDepositNegotiable = false,
     double? maintenanceAmount,
-    // Sale fields
+    bool maintenanceNegotiable = false,
     double? totalPrice,
+    bool totalPriceNegotiable = false,
     double? ratePerUnit,
+    bool ratePerUnitNegotiable = false,
     double? bookingPrice,
+    bool bookingPriceNegotiable = false,
   }) async {
     final Map<String, dynamic> body = {
       "listing_type": listingType,
@@ -117,12 +120,18 @@ class PropertyService {
 
     if (listingType == 'rent') {
       body["rent_amount"] = rentAmount;
+      body["rent_negotiable"] = rentNegotiable;
       body["security_deposit"] = securityDeposit;
+      body["security_deposit_negotiable"] = securityDepositNegotiable;
       body["maintenance_amount"] = maintenanceAmount;
+      body["maintenance_negotiable"] = maintenanceNegotiable;
     } else {
       body["total_price"] = totalPrice;
+      body["total_price_negotiable"] = totalPriceNegotiable;
       body["rate_per_unit"] = ratePerUnit;
+      body["rate_per_unit_negotiable"] = ratePerUnitNegotiable;
       body["booking_price"] = bookingPrice;
+      body["booking_price_negotiable"] = bookingPriceNegotiable;
     }
 
     final response = await ApiService.authorizedRequest((token) {
@@ -276,7 +285,6 @@ class PropertyService {
     }
   }
 
-  // ---------- NAYA: Cover photo set karna ----------
   static Future<Map<String, dynamic>> setCoverImage({
     required int propertyId,
     required int mediaId,
@@ -300,7 +308,6 @@ class PropertyService {
     }
   }
 
-  // ---------- NAYA: YouTube video link add karna ----------
   static Future<Map<String, dynamic>> addVideo({
     required int propertyId,
     required String videoUrl,
@@ -329,7 +336,6 @@ class PropertyService {
     }
   }
 
-  // ---------- NAYA: Description save karna ----------
   static Future<Map<String, dynamic>> updateDescription({
     required int propertyId,
     required String description,
@@ -353,7 +359,6 @@ class PropertyService {
     }
   }
 
-  // ---------- NAYA: Final Submit for Review ----------
   static Future<Map<String, dynamic>> submitForReview(int propertyId) async {
     final response = await ApiService.authorizedRequest((token) {
       final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/submit_for_review/");
@@ -369,13 +374,71 @@ class PropertyService {
     if (response.statusCode == 200) {
       return {"success": true, "data": jsonDecode(response.body)};
     } else {
-      // Backend "error" field mein missing fields ki wajah batata hai
       try {
         final body = jsonDecode(response.body);
         return {"success": false, "error": body["error"] ?? "Submission failed."};
       } catch (e) {
         return {"success": false, "error": "Submission failed."};
       }
+    }
+  }
+
+  static Future<Map<String, dynamic>> addNearbyPlace({
+    required int propertyId,
+    required int categoryId,
+    required String name,
+    double? distanceValue,
+    required String distanceUnit,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/add_nearby_place/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({
+          "category_id": categoryId,
+          "name": name,
+          "distance_value": distanceValue,
+          "distance_unit": distanceUnit,
+        }),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        return {"success": false, "error": body["error"] ?? "Could not add."};
+      } catch (e) {
+        return {"success": false, "error": "Could not add."};
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteNearbyPlace({
+    required int propertyId,
+    required int placeId,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/delete_nearby_place/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"place_id": placeId}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
     }
   }
 }

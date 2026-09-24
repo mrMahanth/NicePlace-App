@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/property_model.dart';
 import '../services/property_service.dart';
-import 'post_property_description_screen.dart';
+import 'post_property_nearby_places_screen.dart';
 
 class PostPropertyMediaScreen extends StatefulWidget {
   final int propertyId;
@@ -21,6 +21,9 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
   String? _loadError;
 
   final ImagePicker _picker = ImagePicker();
+
+  List<PropertyMedia> get _photos => _media.where((m) => m.mediaType == 'image').toList();
+  List<PropertyMedia> get _videos => _media.where((m) => m.mediaType == 'video').toList();
 
   @override
   void initState() {
@@ -184,16 +187,20 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
     }
   }
 
-  Future<void> _onReorder(int oldIndex, int newIndex) async {
+  Future<void> _onReorderPhotos(int oldIndex, int newIndex) async {
+    final photos = List<PropertyMedia>.from(_photos);
+    if (newIndex > oldIndex) newIndex -= 1;
+    final item = photos.removeAt(oldIndex);
+    photos.insert(newIndex, item);
+
     setState(() {
-      if (newIndex > oldIndex) newIndex -= 1;
-      final item = _media.removeAt(oldIndex);
-      _media.insert(newIndex, item);
+      // Photos ka naya order, videos jaise the waise hi rehte hain
+      _media = [...photos, ..._videos];
     });
 
     final result = await PropertyService.reorderImages(
       propertyId: widget.propertyId,
-      mediaIds: _media.map((m) => m.id).toList(),
+      mediaIds: photos.map((m) => m.id).toList(),
     );
 
     if (!mounted) return;
@@ -205,7 +212,6 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
     }
   }
 
-  // YouTube link se thumbnail image nikalne ke liye video ID extract karte hain
   String? _youtubeThumbnail(String? url) {
     if (url == null) return null;
     final regExp = RegExp(
@@ -213,12 +219,11 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
     );
     final match = regExp.firstMatch(url);
     if (match == null) return null;
-    return "https://img.youtube.com/vi/${match.group(1)}/0.jpg";
+    return "https://img.youtube.com/vi/${match.group(1)}/hqdefault.jpg";
   }
 
   Future<void> _continue() async {
-    final hasImage = _media.any((m) => m.mediaType == 'image');
-    if (!hasImage) {
+    if (_photos.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please add at least one photo before continuing.")),
       );
@@ -227,60 +232,50 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PostPropertyDescriptionScreen(propertyId: widget.propertyId),
+        builder: (_) => PostPropertyNearbyPlacesScreen(propertyId: widget.propertyId),
       ),
     );
   }
 
-  Widget _buildMediaTile(PropertyMedia media) {
-    final thumbnail = media.mediaType == 'video' ? _youtubeThumbnail(media.videoUrl) : media.file;
-
+  Widget _photoTile(PropertyMedia media) {
     return Padding(
       key: ValueKey(media.id),
-      padding: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.only(right: 8),
       child: Stack(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: thumbnail != null
-                ? Image.network(
-                    thumbnail,
-                    width: 140,
-                    height: 180,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 140,
-                      height: 180,
-                      color: Colors.grey.shade300,
-                      child: const Icon(Icons.broken_image),
-                    ),
-                  )
-                : Container(
-                    width: 140,
-                    height: 180,
-                    color: Colors.grey.shade300,
-                    child: const Icon(Icons.videocam),
-                  ),
+            child: Image.network(
+              media.file ?? '',
+              width: 110,
+              height: 140,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 110,
+                height: 140,
+                color: Colors.grey.shade300,
+                child: const Icon(Icons.broken_image),
+              ),
+            ),
           ),
-          if (media.mediaType == 'video')
-            const Positioned.fill(
-              child: Center(
-                child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 40),
-              ),
-            ),
-          if (media.isCover)
-            Positioned(
-              top: 4,
-              left: 4,
+          // Star (cover) - top-left
+          Positioned(
+            top: 4,
+            left: 4,
+            child: GestureDetector(
+              onTap: media.isCover ? null : () => _setCover(media),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.circular(4),
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                child: Icon(
+                  media.isCover ? Icons.star : Icons.star_border,
+                  color: media.isCover ? Colors.amber : Colors.white,
+                  size: 16,
                 ),
-                child: const Text("Cover", style: TextStyle(fontSize: 10, color: Colors.black)),
               ),
             ),
+          ),
+          // Delete - top-right
           Positioned(
             top: 4,
             right: 4,
@@ -293,19 +288,57 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
               ),
             ),
           ),
-          if (media.mediaType == 'image' && !media.isCover)
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: GestureDetector(
-                onTap: () => _setCover(media),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                  child: const Icon(Icons.star_border, color: Colors.white, size: 16),
-                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _videoTile(PropertyMedia media) {
+    final thumbnail = _youtubeThumbnail(media.videoUrl);
+    return Padding(
+      key: ValueKey(media.id),
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: thumbnail != null
+                ? Image.network(
+                    thumbnail,
+                    width: 110,
+                    height: 140,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 110,
+                      height: 140,
+                      color: Colors.grey.shade300,
+                      child: const Icon(Icons.videocam),
+                    ),
+                  )
+                : Container(
+                    width: 110,
+                    height: 140,
+                    color: Colors.grey.shade300,
+                    child: const Icon(Icons.videocam),
+                  ),
+          ),
+          const Positioned.fill(
+            child: Center(
+              child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 36),
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: () => _deleteMedia(media),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                child: const Icon(Icons.close, color: Colors.white, size: 16),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -328,67 +361,73 @@ class _PostPropertyMediaScreenState extends State<PostPropertyMediaScreen> {
                     ],
                   ),
                 )
-              : Column(
+              : ListView(
+                  padding: const EdgeInsets.all(12),
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text(
-                        "Add photos and videos. Long-press and drag to reorder. Tap the star to set the cover photo.",
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
+                    const Text(
+                      "Long-press and drag a photo to reorder. Tap the star to set the cover photo.",
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
-                    Expanded(
-                      child: _media.isEmpty
-                          ? const Center(child: Text("No photos or videos added yet."))
+                    const SizedBox(height: 16),
+
+                    const Text("Photos", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 140,
+                      child: _photos.isEmpty
+                          ? const Center(
+                              child: Text("No photos added yet.",
+                                  style: TextStyle(color: Colors.black54, fontSize: 12)),
+                            )
                           : ReorderableListView.builder(
                               scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              itemCount: _media.length,
-                              onReorder: _onReorder,
-                              itemBuilder: (context, index) => _buildMediaTile(_media[index]),
+                              itemCount: _photos.length,
+                              onReorder: _onReorderPhotos,
+                              itemBuilder: (context, index) => _photoTile(_photos[index]),
                             ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isUploading ? null : _addPhotos,
-                                  icon: _isUploading
-                                      ? const SizedBox(
-                                          height: 16,
-                                          width: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2))
-                                      : const Icon(Icons.add_photo_alternate_outlined),
-                                  label: Text(_isUploading ? "Uploading..." : "Add Photos"),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isAddingVideo ? null : _addVideoLink,
-                                  icon: _isAddingVideo
-                                      ? const SizedBox(
-                                          height: 16,
-                                          width: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2))
-                                      : const Icon(Icons.video_call_outlined),
-                                  label: const Text("Add Video"),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: _continue,
-                            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(14)),
-                            child: const Text("Save & Continue"),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _isUploading ? null : _addPhotos,
+                      icon: _isUploading
+                          ? const SizedBox(
+                              height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.add_photo_alternate_outlined),
+                      label: Text(_isUploading ? "Uploading..." : "Add Photos"),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    const Text("Videos", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 140,
+                      child: _videos.isEmpty
+                          ? const Center(
+                              child: Text("No videos added yet.",
+                                  style: TextStyle(color: Colors.black54, fontSize: 12)),
+                            )
+                          : ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _videos.length,
+                              itemBuilder: (context, index) => _videoTile(_videos[index]),
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _isAddingVideo ? null : _addVideoLink,
+                      icon: _isAddingVideo
+                          ? const SizedBox(
+                              height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.video_call_outlined),
+                      label: const Text("Add Video"),
+                    ),
+
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: _continue,
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(14)),
+                      child: const Text("Save & Continue"),
                     ),
                   ],
                 ),
