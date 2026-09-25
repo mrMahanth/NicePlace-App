@@ -271,4 +271,173 @@ class ProjectService {
       }
     }
   }
+
+  // ---------- Project photo upload karna ----------
+  static Future<Map<String, dynamic>> uploadProjectImage({
+    required int projectId,
+    required String filePath,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    if (token == null) {
+      return {"success": false, "error": "Login required"};
+    }
+
+    final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/upload_project_image/");
+    final request = http.MultipartRequest('POST', url);
+    request.headers['Authorization'] = "Bearer $token";
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Project photo delete karna ----------
+  static Future<Map<String, dynamic>> deleteProjectImage({
+    required int projectId,
+    required int mediaId,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/delete_project_image/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"media_id": mediaId}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Project photos reorder karna ----------
+  static Future<Map<String, dynamic>> reorderProjectImages({
+    required int projectId,
+    required List<int> mediaIds,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/reorder_project_images/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"media_ids": mediaIds}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Project cover photo set karna ----------
+  static Future<Map<String, dynamic>> setProjectCoverImage({
+    required int projectId,
+    required int mediaId,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/set_project_cover_image/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"media_id": mediaId}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Project video link add karna ----------
+  static Future<Map<String, dynamic>> addProjectVideo({
+    required int projectId,
+    required String videoUrl,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/add_project_video/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"video_url": videoUrl}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        return {"success": false, "error": body["error"] ?? "Could not add video."};
+      } catch (e) {
+        return {"success": false, "error": "Could not add video."};
+      }
+    }
+  }
+
+  // ---------- Sab draft units ko review ke liye submit karna ----------
+  static Future<Map<String, dynamic>> bulkSubmitForReview(int projectId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/bulk_submit_for_review/");
+      return http.post(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        return {"success": false, "error": body["error"] ?? "Could not submit units."};
+      } catch (e) {
+        return {"success": false, "error": "Could not submit units."};
+      }
+    }
+  }
+
+  // ---------- Project description save karna ----------
+  static Future<Map<String, dynamic>> updateDescription({
+    required int projectId,
+    required String description,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/");
+      return http.patch(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"description": description}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
 }
