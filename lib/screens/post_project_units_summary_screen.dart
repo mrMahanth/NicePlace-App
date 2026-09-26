@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/property_service.dart';
 import '../services/project_service.dart';
 import 'post_project_description_screen.dart';
@@ -19,6 +20,9 @@ class _PostProjectUnitsSummaryScreenState
   bool _isLoading = true;
   String? _loadError;
   bool _isSubmitting = false;
+  final Set<int> _uploadingUnitIds = {};
+
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -48,6 +52,26 @@ class _PostProjectUnitsSummaryScreenState
   int _photoCount(Map<String, dynamic> unit) {
     final media = unit['media'] as List<dynamic>? ?? [];
     return media.where((m) => m['media_type'] == 'image').length;
+  }
+
+  Future<void> _addPhotosToUnit(int unitId) async {
+    final List<XFile> picked = await _picker.pickMultiImage();
+    if (picked.isEmpty) return;
+
+    setState(() => _uploadingUnitIds.add(unitId));
+
+    for (final xfile in picked) {
+      final result = await PropertyService.uploadImage(propertyId: unitId, filePath: xfile.path);
+      if (!mounted) return;
+      if (result["success"] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("One of the photos failed to upload.")),
+        );
+      }
+    }
+
+    setState(() => _uploadingUnitIds.remove(unitId));
+    await _loadUnits();
   }
 
   Future<void> _submitAll() async {
@@ -93,10 +117,7 @@ class _PostProjectUnitsSummaryScreenState
             ),
           ),
           actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("OK"),
-            ),
+            ElevatedButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("OK")),
           ],
         ),
       );
@@ -139,7 +160,7 @@ class _PostProjectUnitsSummaryScreenState
                   padding: const EdgeInsets.all(16),
                   children: [
                     const Text(
-                      "Review all units before submitting for admin approval.",
+                      "Review all units before submitting for admin approval. You can add photos here too.",
                       style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                     const SizedBox(height: 16),
@@ -151,22 +172,43 @@ class _PostProjectUnitsSummaryScreenState
                       )
                     else
                       ..._units.map((unit) {
+                        final unitId = unit['id'];
                         final photoCount = _photoCount(unit);
                         final hasNoPhotos = photoCount == 0;
+                        final isUploading = _uploadingUnitIds.contains(unitId);
 
                         return Card(
-                          child: ListTile(
-                            title: Text(unit['title'] ?? ''),
-                            subtitle: Column(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text(unit['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
                                 Text("Status: ${unit['status']}"),
                                 Text("$photoCount photo(s)"),
                                 if (hasNoPhotos)
-                                  const Text(
-                                    "⚠️ Photos are missing, you can upload them later.",
-                                    style: TextStyle(color: Colors.orange, fontSize: 12),
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      "⚠️ Photos are missing, you can upload them later.",
+                                      style: TextStyle(color: Colors.orange, fontSize: 12),
+                                    ),
                                   ),
+                                const SizedBox(height: 6),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: OutlinedButton.icon(
+                                    onPressed: isUploading ? null : () => _addPhotosToUnit(unitId),
+                                    icon: isUploading
+                                        ? const SizedBox(
+                                            height: 14,
+                                            width: 14,
+                                            child: CircularProgressIndicator(strokeWidth: 2))
+                                        : const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                                    label: Text(isUploading ? "Uploading..." : "Add Photos"),
+                                  ),
+                                ),
                               ],
                             ),
                           ),

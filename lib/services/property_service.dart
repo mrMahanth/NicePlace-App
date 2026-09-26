@@ -155,7 +155,7 @@ class PropertyService {
 
   static Future<Map<String, dynamic>> fetchPropertyRaw(int propertyId) async {
     final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/");
-    final response = await http.get(url);
+    final response = await ApiService.getWithRetry(url);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

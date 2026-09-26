@@ -35,7 +35,7 @@ class PropertyTypeService {
       int propertyTypeId) async {
     final url = Uri.parse(
         "${ApiService.baseUrl}/attribute-definitions/?property_type=$propertyTypeId");
-    final response = await http.get(url);
+    final response = await ApiService.getWithRetry(url);
 
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body);

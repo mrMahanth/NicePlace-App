@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/location_service.dart';
 import '../services/project_service.dart';
+import '../services/property_type_service.dart';
 import '../data/india_states_districts.dart';
 import 'post_project_amenities_screen.dart';
 
@@ -32,6 +33,13 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
   String? _selectedState;
   String? _selectedDistrict;
   String _listingType = 'rent';
+  String _startingPriceUnit = 'per_month';
+
+  static const List<Map<String, String>> _rentUnitOptions = [
+    {'value': 'per_day', 'label': 'Per Day'},
+    {'value': 'per_month', 'label': 'Per Month'},
+    {'value': 'per_year', 'label': 'Per Year'},
+  ];
 
   final MapController _mapController = MapController();
   final ScrollController _scrollController = ScrollController();
@@ -55,6 +63,37 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
   void initState() {
     super.initState();
     _localityFocusNode.addListener(_onLocalityFocusChanged);
+    _loadDefaultStartingPriceUnit();
+  }
+
+  // Project banate waqt property_type already set ho chuka hai (draft create ke time) -
+  // uska is_bookable/naam check karke Starting Price ka smart default unit set karte hain.
+  Future<void> _loadDefaultStartingPriceUnit() async {
+    try {
+      final project = await ProjectService.fetchProjectRaw(widget.projectId);
+      final propertyTypeId = project['property_type_pk'];
+      if (propertyTypeId == null) return;
+
+      final types = await PropertyTypeService.fetchPropertyTypes();
+      final matchingType = types.where((t) => t.id == propertyTypeId).toList();
+      if (matchingType.isEmpty) return;
+
+      final isBookable = matchingType.first.isBookable;
+      final typeName = matchingType.first.name.toLowerCase();
+
+      String computedDefault;
+      if (isBookable) {
+        computedDefault = 'per_day';
+      } else if (typeName.contains('plot')) {
+        computedDefault = 'per_year';
+      } else {
+        computedDefault = 'per_month';
+      }
+
+      if (mounted) setState(() => _startingPriceUnit = computedDefault);
+    } catch (e) {
+      // best-effort - default 'per_month' hi rahega agar ye fail ho jaye
+    }
   }
 
   void _onLocalityFocusChanged() {
@@ -295,6 +334,7 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
       totalUnits: int.tryParse(_totalUnitsController.text.trim()),
       listingType: _listingType,
       startingPrice: double.tryParse(_startingPriceController.text.trim()),
+      startingPriceUnit: _listingType == 'rent' ? _startingPriceUnit : 'per_sqft',
     );
 
     if (detailsResult["success"] != true) {
@@ -374,6 +414,10 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
             const SizedBox(height: 16),
 
             const Text("Listing Type", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              "This applies to the whole project. All units will follow this.",
+              style: TextStyle(fontSize: 11, color: Colors.black54),
+            ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               value: _listingType,
@@ -390,12 +434,54 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
 
             _buildField("Total Units (optional)", _totalUnitsController,
                 keyboardType: TextInputType.number),
-            _buildField(
-              _listingType == 'rent'
-                  ? "Starting Rent From (Optional)"
-                  : "Starting Price From (Optional)",
-              _startingPriceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+
+            // ---------- Starting Price + unit ----------
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: _listingType == 'rent' ? 3 : 1,
+                  child: TextField(
+                    controller: _startingPriceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: _listingType == 'rent'
+                          ? "Starting Rent From (optional)"
+                          : "Starting Price From (optional)",
+                      suffixText: _listingType == 'sale' ? "/Sq.Ft." : null,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                if (_listingType == 'rent') ...[
+                  const SizedBox(width: 6),
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String>(
+                      value: _startingPriceUnit,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      ),
+                      items: _rentUnitOptions
+                          .map((opt) => DropdownMenuItem(
+                                value: opt['value'],
+                                child: Text(opt['label']!, style: const TextStyle(fontSize: 12)),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => _startingPriceUnit = value);
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              "This is a display-only reference (e.g. \"Starting from ₹X\"). Actual pricing is set per unit.",
+              style: TextStyle(fontSize: 11, color: Colors.black54),
             ),
 
             const SizedBox(height: 16),

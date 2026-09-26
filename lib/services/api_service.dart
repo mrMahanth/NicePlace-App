@@ -245,4 +245,18 @@ class ApiService {
     await prefs.remove("access_token");
     await prefs.remove("refresh_token");
   }
+
+  // ---------- NAYA: Retry wrapper - network hiccup pe khud dobara try karta hai ----------
+  static Future<http.Response> getWithRetry(Uri url, {Map<String, String>? headers, int retries = 2}) async {
+    int attempt = 0;
+    while (true) {
+      try {
+        return await http.get(url, headers: headers).timeout(const Duration(seconds: 15));
+      } catch (e) {
+        attempt++;
+        if (attempt > retries) rethrow;
+        await Future.delayed(const Duration(milliseconds: 600));
+      }
+    }
+  }
 }

@@ -5,11 +5,16 @@ import '../models/attribute_definition_model.dart';
 class PostProjectUnitEditScreen extends StatefulWidget {
   final UnitDraft initialDraft;
   final List<AttributeDefinitionModel> attributeDefinitions;
+  final String fixedListingType;
+  // attrId -> already-set common amenity value (display text), agar koi ho
+  final Map<int, String> commonAttributeValues;
 
   const PostProjectUnitEditScreen({
     super.key,
     required this.initialDraft,
     required this.attributeDefinitions,
+    required this.fixedListingType,
+    this.commonAttributeValues = const {},
   });
 
   @override
@@ -32,9 +37,10 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
   @override
   void initState() {
     super.initState();
-    // Deep-ish copy taaki Cancel karne par original draft untouched rahe
-    _draft = widget.initialDraft.duplicate()..unitNumber = widget.initialDraft.unitNumber;
+    _draft = widget.initialDraft.duplicate();
+    _draft.unitNumber = widget.initialDraft.unitNumber;
     _draft.status = widget.initialDraft.status;
+    _draft.listingType = widget.fixedListingType; // hamesha project ke hisaab se fixed
 
     _unitNumberController.text = _draft.unitNumber;
     _rentAmountController.text = _draft.rentAmount?.toString() ?? '';
@@ -94,6 +100,11 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
       _draft.bookingPrice = _parseOrNull(_bookingPriceController.text);
     }
 
+    // Common-amenity wale attributes kabhi is form se save nahi hote (project se hi aate hain)
+    for (final attrId in widget.commonAttributeValues.keys) {
+      _draft.attributeValues.remove(attrId);
+    }
+
     Navigator.pop(context, _draft);
   }
 
@@ -131,7 +142,36 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
     );
   }
 
+  // Attribute jo already Common Amenities mein set hai - disabled dikhega
+  Widget _commonAttributeNote(AttributeDefinitionModel attr) {
+    final commonValue = widget.commonAttributeValues[attr.id]!;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade400),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline, size: 16, color: Colors.black45),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "${attr.attributeName}: $commonValue  •  Already selected as common amenities",
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAttributeField(AttributeDefinitionModel attr) {
+    if (widget.commonAttributeValues.containsKey(attr.id)) {
+      return _commonAttributeNote(attr);
+    }
+
     switch (attr.attributeType) {
       case 'textbox':
         return TextFormField(
@@ -231,14 +271,22 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _draft.listingType,
-                  decoration: const InputDecoration(labelText: "Listing Type", border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'rent', child: Text('Rent')),
-                    DropdownMenuItem(value: 'sale', child: Text('Sale')),
-                  ],
-                  onChanged: (v) => setState(() => _draft.listingType = v ?? 'rent'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade400),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        _draft.listingType == 'rent' ? "Rent" : "Sale",
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.lock_outline, size: 14, color: Colors.black45),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -254,7 +302,13 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.only(top: 4, bottom: 16),
+            child: Text(
+              "Listing type is set for the whole project. Use \"Change\" on the Bulk Units screen to update it.",
+              style: TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+          ),
 
           if (_draft.listingType == 'rent') ...[
             _amountRow("Rent Amount", _rentAmountController, _draft.rentNegotiable,

@@ -54,6 +54,7 @@ class ProjectService {
     int? totalUnits,
     required String listingType,
     double? startingPrice,
+    String? startingPriceUnit,
   }) async {
     final response = await ApiService.authorizedRequest((token) {
       final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/");
@@ -77,6 +78,7 @@ class ProjectService {
           "total_units": totalUnits,
           "listing_type": listingType,
           "starting_price": startingPrice,
+          "starting_price_unit": startingPriceUnit,
         }),
       );
     });
@@ -436,6 +438,36 @@ class ProjectService {
 
     if (response.statusCode == 200) {
       return {"success": true, "data": jsonDecode(response.body)};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Sirf Listing Type + Starting Price change karna (Bulk Units screen se) ----------
+  static Future<Map<String, dynamic>> updateListingTypeAndPrice({
+    required int projectId,
+    required String listingType,
+    double? startingPrice,
+    String? startingPriceUnit,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/");
+      return http.patch(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({
+          "listing_type": listingType,
+          "starting_price": startingPrice,
+          "starting_price_unit": startingPriceUnit,
+        }),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
     } else {
       return {"success": false, "error": response.body};
     }
