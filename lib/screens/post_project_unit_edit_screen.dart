@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/unit_draft_model.dart';
 import '../models/attribute_definition_model.dart';
+import 'post_project_unit_amenities_screen.dart';
 
 class PostProjectUnitEditScreen extends StatefulWidget {
   final UnitDraft initialDraft;
   final List<AttributeDefinitionModel> attributeDefinitions;
   final String fixedListingType;
-  // attrId -> already-set common amenity value (display text), agar koi ho
   final Map<int, String> commonAttributeValues;
 
   const PostProjectUnitEditScreen({
@@ -40,7 +40,7 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
     _draft = widget.initialDraft.duplicate();
     _draft.unitNumber = widget.initialDraft.unitNumber;
     _draft.status = widget.initialDraft.status;
-    _draft.listingType = widget.fixedListingType; // hamesha project ke hisaab se fixed
+    _draft.listingType = widget.fixedListingType;
 
     _unitNumberController.text = _draft.unitNumber;
     _rentAmountController.text = _draft.rentAmount?.toString() ?? '';
@@ -67,6 +67,33 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
     final t = text.trim();
     if (t.isEmpty) return null;
     return double.tryParse(t);
+  }
+
+  Future<void> _openAmenities() async {
+    final result = await Navigator.push<Map<int, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostProjectUnitAmenitiesScreen(
+          attributeDefinitions: widget.attributeDefinitions,
+          initialValues: _draft.attributeValues,
+          commonAttributeValues: widget.commonAttributeValues,
+        ),
+      ),
+    );
+    if (result != null) {
+      setState(() => _draft.attributeValues = result);
+    }
+  }
+
+  int get _setAttributeCount {
+    // Common-amenity wale attributes count mein nahi jodte (wo yahan se set hi nahi hote)
+    return _draft.attributeValues.entries.where((e) {
+      if (widget.commonAttributeValues.containsKey(e.key)) return false;
+      final v = e.value;
+      if (v == null) return false;
+      if (v is Set<String>) return v.isNotEmpty;
+      return v.toString().trim().isNotEmpty;
+    }).length;
   }
 
   void _onSave() {
@@ -100,7 +127,6 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
       _draft.bookingPrice = _parseOrNull(_bookingPriceController.text);
     }
 
-    // Common-amenity wale attributes kabhi is form se save nahi hote (project se hi aate hain)
     for (final attrId in widget.commonAttributeValues.keys) {
       _draft.attributeValues.remove(attrId);
     }
@@ -140,115 +166,6 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
         ],
       ),
     );
-  }
-
-  // Attribute jo already Common Amenities mein set hai - disabled dikhega
-  Widget _commonAttributeNote(AttributeDefinitionModel attr) {
-    final commonValue = widget.commonAttributeValues[attr.id]!;
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade400),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.lock_outline, size: 16, color: Colors.black45),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              "${attr.attributeName}: $commonValue  •  Already selected as common amenities",
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAttributeField(AttributeDefinitionModel attr) {
-    if (widget.commonAttributeValues.containsKey(attr.id)) {
-      return _commonAttributeNote(attr);
-    }
-
-    switch (attr.attributeType) {
-      case 'textbox':
-        return TextFormField(
-          initialValue: _draft.attributeValues[attr.id] ?? '',
-          decoration: InputDecoration(labelText: attr.attributeName, border: const OutlineInputBorder()),
-          onChanged: (val) => _draft.attributeValues[attr.id] = val,
-        );
-      case 'textarea':
-        return TextFormField(
-          initialValue: _draft.attributeValues[attr.id] ?? '',
-          maxLines: 3,
-          decoration: InputDecoration(labelText: attr.attributeName, border: const OutlineInputBorder()),
-          onChanged: (val) => _draft.attributeValues[attr.id] = val,
-        );
-      case 'number':
-        return TextFormField(
-          initialValue: _draft.attributeValues[attr.id] ?? '',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: attr.attributeName,
-            suffixText: attr.unitLabel.isNotEmpty ? attr.unitLabel : null,
-            border: const OutlineInputBorder(),
-          ),
-          onChanged: (val) => _draft.attributeValues[attr.id] = val,
-        );
-      case 'dropdown':
-        return DropdownButtonFormField<String>(
-          value: (_draft.attributeValues[attr.id] as String?)?.isNotEmpty == true
-              ? _draft.attributeValues[attr.id]
-              : null,
-          decoration: InputDecoration(labelText: attr.attributeName, border: const OutlineInputBorder()),
-          items: attr.options.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
-          onChanged: (val) => setState(() => _draft.attributeValues[attr.id] = val),
-        );
-      case 'radio':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(attr.attributeName, style: const TextStyle(fontWeight: FontWeight.w500)),
-            ...attr.options.map((opt) => RadioListTile<String>(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(opt),
-                  value: opt,
-                  groupValue: _draft.attributeValues[attr.id] as String?,
-                  onChanged: (val) => setState(() => _draft.attributeValues[attr.id] = val),
-                )),
-          ],
-        );
-      case 'checkbox':
-        final selected = (_draft.attributeValues[attr.id] as Set<String>?) ?? <String>{};
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(attr.attributeName, style: const TextStyle(fontWeight: FontWeight.w500)),
-            Wrap(
-              spacing: 8,
-              children: attr.options.map((opt) {
-                final isSelected = selected.contains(opt);
-                return FilterChip(
-                  label: Text(opt),
-                  selected: isSelected,
-                  onSelected: (checked) {
-                    setState(() {
-                      final updated = Set<String>.from(selected);
-                      checked ? updated.add(opt) : updated.remove(opt);
-                      _draft.attributeValues[attr.id] = updated;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-          ],
-        );
-      default:
-        return const SizedBox.shrink();
-    }
   }
 
   @override
@@ -326,17 +243,21 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
                 (v) => setState(() => _draft.bookingPriceNegotiable = v)),
           ],
 
-          if (widget.attributeDefinitions.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            const Text("Attributes", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            for (final attr in widget.attributeDefinitions) ...[
-              _buildAttributeField(attr),
-              const SizedBox(height: 14),
-            ],
-          ],
+          const SizedBox(height: 8),
+          // ---------- NAYA: Attributes ab button ke peeche hain ----------
+          OutlinedButton.icon(
+            onPressed: widget.attributeDefinitions.isEmpty ? null : _openAmenities,
+            icon: const Icon(Icons.checklist),
+            label: Text(
+              widget.attributeDefinitions.isEmpty
+                  ? "No amenities available"
+                  : _setAttributeCount > 0
+                      ? "Unit Amenities ($_setAttributeCount set)"
+                      : "Unit Amenities",
+            ),
+          ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _onSave,
             style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(14)),

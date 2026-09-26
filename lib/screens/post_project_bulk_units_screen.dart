@@ -17,30 +17,42 @@ class PostProjectBulkUnitsScreen extends StatefulWidget {
 }
 
 class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen> {
-  bool _isLoading = true;
-  String? _loadError;
-
+  // ---------- Project info (listing type, starting price, property type) ----------
+  bool _isLoadingProjectInfo = true;
+  String? _projectInfoError;
   int? _propertyTypeId;
   String _projectListingType = 'rent';
   double? _startingPrice;
-  List<AttributeDefinitionModel> _attributeDefinitions = [];
-  Map<int, String> _commonAttributeValues = {}; // attrId -> display value
+  Map<int, String> _commonAttributeValues = {};
+
+  // ---------- Existing units ----------
+  bool _isLoadingUnits = true;
+  String? _unitsError;
   List<Map<String, dynamic>> _existingUnits = [];
+
+  // ---------- Attributes (lazy - sirf jab Add/Edit/Duplicate ho tab load hote hain) ----------
+  List<AttributeDefinitionModel>? _attributeDefinitions; // null = abhi tak load nahi hue
+  bool _isLoadingAttributes = false;
+
   final List<UnitDraft> _draftUnits = [];
 
-  bool _isCreatingUnits = false;
   bool _isChangingListingType = false;
+
+  // ---------- Batch creation ----------
+  bool _isCreatingUnits = false;
+  String? _creationProgressText;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadProjectInfo();
+    _loadUnits();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadProjectInfo() async {
     setState(() {
-      _isLoading = true;
-      _loadError = null;
+      _isLoadingProjectInfo = true;
+      _projectInfoError = null;
     });
     try {
       final project = await ProjectService.fetchProjectRaw(widget.projectId);
@@ -48,13 +60,6 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       _projectListingType = project['listing_type'] ?? 'rent';
       _startingPrice = (project['starting_price'] as num?)?.toDouble();
 
-      final allAttrs = await PropertyTypeService.fetchAttributeDefinitions(_propertyTypeId!);
-      final filteredAttrs = allAttrs.where((a) {
-        final applicable = a.applicableTo == 'all' || a.applicableTo == _projectListingType;
-        return applicable && a.attributeType != 'file';
-      }).toList();
-
-      // Project-level Common Amenities values (jo already set hain)
       final projectAttrValues = project['attribute_values'] as List<dynamic>? ?? [];
       final Map<int, String> commonValues = {};
       for (final av in projectAttrValues) {
@@ -64,26 +69,73 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
         }
       }
 
-      final units = await PropertyService.fetchUnitsForProject(widget.projectId);
-
       setState(() {
-        _attributeDefinitions = filteredAttrs;
         _commonAttributeValues = commonValues;
-        _existingUnits = units;
-        _isLoading = false;
+        _isLoadingProjectInfo = false;
       });
     } catch (e) {
       setState(() {
-        _loadError = "Could not load units. Please check your internet connection.";
-        _isLoading = false;
+        _projectInfoError = "Could not load project info.";
+        _isLoadingProjectInfo = false;
       });
     }
   }
 
-  List<int> get _checkboxAttributeIds =>
-      _attributeDefinitions.where((a) => a.attributeType == 'checkbox').map((a) => a.id).toList();
+  Future<void> _loadUnits() async {
+    setState(() {
+      _isLoadingUnits = true;
+      _unitsError = null;
+    });
+    try {
+      final units = await PropertyService.fetchUnitsForProject(widget.projectId);
+      setState(() {
+        _existingUnits = units;
+        _isLoadingUnits = false;
+      });
+    } catch (e) {
+      setState(() {
+        _unitsError = "Could not load units.";
+        _isLoadingUnits = false;
+      });
+    }
+  }
 
-  // ---------- Point 1: Listing Type change popup (koi navigation nahi) ----------
+  // Attributes sirf pehli baar Add/Edit/Duplicate pe load hote hain, phir cache ho jaate hain
+  Future<List<AttributeDefinitionModel>?> _ensureAttributesLoaded() async {
+    if (_attributeDefinitions != null) return _attributeDefinitions;
+    if (_propertyTypeId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Project info not loaded yet. Please wait or retry above.")),
+      );
+      return null;
+    }
+
+    setState(() => _isLoadingAttributes = true);
+    try {
+      final allAttrs = await PropertyTypeService.fetchAttributeDefinitions(_propertyTypeId!);
+      final filtered = allAttrs.where((a) {
+        final applicable = a.applicableTo == 'all' || a.applicableTo == _projectListingType;
+        return applicable && a.attributeType != 'file';
+      }).toList();
+      setState(() {
+        _attributeDefinitions = filtered;
+        _isLoadingAttributes = false;
+      });
+      return filtered;
+    } catch (e) {
+      setState(() => _isLoadingAttributes = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not load amenities. Please try again.")),
+        );
+      }
+      return null;
+    }
+  }
+
+  List<int> get _checkboxAttributeIds =>
+      (_attributeDefinitions ?? []).where((a) => a.attributeType == 'checkbox').map((a) => a.id).toList();
+
   Future<void> _showChangeListingTypeDialog() async {
     if (_draftUnits.isNotEmpty) {
       final proceed = await showDialog<bool>(
@@ -161,8 +213,11 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
     if (!mounted) return;
 
     if (result["success"] == true) {
-      setState(() => _draftUnits.clear());
-      await _loadData();
+      setState(() {
+        _draftUnits.clear();
+        _attributeDefinitions = null; // listing type badla, attributes ka applicable-filter dobara chahiye
+      });
+      await _loadProjectInfo();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Could not update listing type. Please try again.")),
@@ -171,12 +226,15 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   }
 
   Future<void> _addNewUnit() async {
+    final attrs = await _ensureAttributesLoaded();
+    if (attrs == null || !mounted) return;
+
     final result = await Navigator.push<UnitDraft>(
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
           initialDraft: UnitDraft(listingType: _projectListingType),
-          attributeDefinitions: _attributeDefinitions,
+          attributeDefinitions: attrs,
           fixedListingType: _projectListingType,
           commonAttributeValues: _commonAttributeValues,
         ),
@@ -186,12 +244,15 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   }
 
   Future<void> _editDraftUnit(int index) async {
+    final attrs = await _ensureAttributesLoaded();
+    if (attrs == null || !mounted) return;
+
     final result = await Navigator.push<UnitDraft>(
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
           initialDraft: _draftUnits[index],
-          attributeDefinitions: _attributeDefinitions,
+          attributeDefinitions: attrs,
           fixedListingType: _projectListingType,
           commonAttributeValues: _commonAttributeValues,
         ),
@@ -200,15 +261,17 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
     if (result != null) setState(() => _draftUnits[index] = result);
   }
 
-  // ---------- Point 4: Duplicate ab turant Edit screen kholta hai naam poochne ke liye ----------
   Future<void> _duplicateDraftUnit(int index) async {
+    final attrs = await _ensureAttributesLoaded();
+    if (attrs == null || !mounted) return;
+
     final duplicated = _draftUnits[index].duplicate();
     final result = await Navigator.push<UnitDraft>(
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
           initialDraft: duplicated,
-          attributeDefinitions: _attributeDefinitions,
+          attributeDefinitions: attrs,
           fixedListingType: _projectListingType,
           commonAttributeValues: _commonAttributeValues,
         ),
@@ -222,13 +285,16 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   }
 
   Future<void> _duplicateExistingUnit(Map<String, dynamic> unit) async {
+    final attrs = await _ensureAttributesLoaded();
+    if (attrs == null || !mounted) return;
+
     final draft = UnitDraft.fromExistingUnitJson(unit, _checkboxAttributeIds);
     final result = await Navigator.push<UnitDraft>(
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
           initialDraft: draft,
-          attributeDefinitions: _attributeDefinitions,
+          attributeDefinitions: attrs,
           fixedListingType: _projectListingType,
           commonAttributeValues: _commonAttributeValues,
         ),
@@ -263,6 +329,7 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
     }
   }
 
+  // ---------- NAYA: Batch-wise creation (5-5 units) ----------
   Future<void> _createAllUnits() async {
     if (_draftUnits.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -270,25 +337,60 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       return;
     }
 
-    setState(() => _isCreatingUnits = true);
+    const batchSize = 5;
+    setState(() {
+      _isCreatingUnits = true;
+      _creationProgressText = null;
+    });
 
-    final unitsJson = _draftUnits.map((d) => d.toApiJson()).toList();
-    final result = await ProjectService.bulkCreateUnits(projectId: widget.projectId, units: unitsJson);
+    final totalBatches = (_draftUnits.length / batchSize).ceil();
+    int createdCount = 0;
+    int batchNumber = 0;
 
-    setState(() => _isCreatingUnits = false);
+    while (_draftUnits.isNotEmpty) {
+      batchNumber++;
+      final batch = _draftUnits.take(batchSize).toList();
+
+      setState(() => _creationProgressText = "Creating batch $batchNumber of $totalBatches...");
+
+      final unitsJson = batch.map((d) => d.toApiJson()).toList();
+      final result = await ProjectService.bulkCreateUnits(projectId: widget.projectId, units: unitsJson);
+
+      if (result["success"] == true) {
+        setState(() {
+          // Sirf successfully-created batch hi list se hataate hain
+          _draftUnits.removeRange(0, batch.length);
+        });
+        createdCount += batch.length;
+      } else {
+        setState(() {
+          _isCreatingUnits = false;
+          _creationProgressText = null;
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Batch $batchNumber failed: ${result["error"]}. "
+              "$createdCount unit(s) were created before this. Remaining units are still in the list below — you can try again.",
+            ),
+          ),
+        );
+        await _loadUnits();
+        return;
+      }
+    }
+
+    setState(() {
+      _isCreatingUnits = false;
+      _creationProgressText = null;
+    });
 
     if (!mounted) return;
-
-    if (result["success"] == true) {
-      final message = result["data"]["message"] ?? "Units created.";
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-      setState(() => _draftUnits.clear());
-      await _loadData();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["error"].toString())),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$createdCount unit(s) created successfully.")),
+    );
+    await _loadUnits();
   }
 
   void _continue() {
@@ -353,104 +455,144 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
     );
   }
 
+  Widget _projectInfoHeader() {
+    if (_isLoadingProjectInfo) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 10),
+            Text("Loading project info..."),
+          ],
+        ),
+      );
+    }
+    if (_projectInfoError != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+        child: Row(
+          children: [
+            Expanded(child: Text(_projectInfoError!, style: const TextStyle(color: Colors.red))),
+            TextButton(onPressed: _loadProjectInfo, child: const Text("Retry")),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              "Project Listing Type: ${_projectListingType == 'rent' ? 'Rent' : 'Sale'}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          _isChangingListingType
+              ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : TextButton(onPressed: _showChangeListingTypeDialog, child: const Text("Change")),
+        ],
+      ),
+    );
+  }
+
+  Widget _unitsSection() {
+    if (_isLoadingUnits) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_unitsError != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+        child: Row(
+          children: [
+            Expanded(child: Text(_unitsError!, style: const TextStyle(color: Colors.red))),
+            TextButton(onPressed: _loadUnits, child: const Text("Retry")),
+          ],
+        ),
+      );
+    }
+    if (_existingUnits.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Existing Units", style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        ..._existingUnits.map(_existingUnitCard),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Bulk Units")),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _loadError != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_loadError!),
-                      const SizedBox(height: 12),
-                      ElevatedButton(onPressed: _loadData, child: const Text("Try Again")),
-                    ],
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    // ---------- Project Listing Type header ----------
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "Project Listing Type: ${_projectListingType == 'rent' ? 'Rent' : 'Sale'}",
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          _isChangingListingType
-                              ? const SizedBox(
-                                  height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : TextButton(
-                                  onPressed: _showChangeListingTypeDialog,
-                                  child: const Text("Change"),
-                                ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _projectInfoHeader(),
+          const SizedBox(height: 16),
 
-                    if (_existingUnits.isNotEmpty) ...[
-                      const Text("Existing Units", style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      ..._existingUnits.map(_existingUnitCard),
-                      const SizedBox(height: 20),
-                    ],
+          _unitsSection(),
 
-                    const Text("New Units", style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "Add units below, then tap \"Create All Units\" to save them all at once.",
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_draftUnits.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Text("No new units added yet.", style: TextStyle(color: Colors.black54)),
-                      )
-                    else
-                      for (int i = 0; i < _draftUnits.length; i++) _draftUnitCard(i),
+          const Text("New Units", style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text(
+            "Add units below, then tap \"Create All Units\" to save them all at once.",
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          if (_draftUnits.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text("No new units added yet.", style: TextStyle(color: Colors.black54)),
+            )
+          else
+            for (int i = 0; i < _draftUnits.length; i++) _draftUnitCard(i),
 
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: _addNewUnit,
-                      icon: const Icon(Icons.add),
-                      label: const Text("Add Unit"),
-                    ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _isLoadingAttributes ? null : _addNewUnit,
+            icon: _isLoadingAttributes
+                ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.add),
+            label: Text(_isLoadingAttributes ? "Loading..." : "Add Unit"),
+          ),
 
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _isCreatingUnits ? null : _createAllUnits,
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(14)),
-                      child: _isCreatingUnits
-                          ? const SizedBox(
-                              height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text("Create All Units"),
-                    ),
+          const SizedBox(height: 16),
+          if (_creationProgressText != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_creationProgressText!, style: const TextStyle(color: Colors.black54)),
+            ),
+          ElevatedButton(
+            onPressed: _isCreatingUnits ? null : _createAllUnits,
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(14)),
+            child: _isCreatingUnits
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text("Create All Units"),
+          ),
 
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _continue,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.all(14),
-                        backgroundColor: Colors.grey.shade300,
-                        foregroundColor: Colors.black,
-                      ),
-                      child: const Text("Continue to Project Media"),
-                    ),
-                  ],
-                ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _continue,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.all(14),
+              backgroundColor: Colors.grey.shade300,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text("Continue to Project Media"),
+          ),
+        ],
+      ),
     );
   }
 }
