@@ -110,7 +110,15 @@ class UnitDraft {
     return json;
   }
 
-  // Existing (already-created) unit ke JSON se ek draft banata hai - Duplicate ke liye
+  // DRF DecimalField ko JSON mein String bhejta hai (e.g. "1000.00"), number nahi -
+  // ye helper dono format (String ya number) ko safely double mein badal deta hai.
+  static double? _parseFlexibleDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
   factory UnitDraft.fromExistingUnitJson(
     Map<String, dynamic> json,
     List<int> checkboxAttributeIds,
@@ -119,17 +127,17 @@ class UnitDraft {
       unitNumber: '', // blank-numbered, per spec
       listingType: json['listing_type'] ?? 'rent',
       status: 'draft', // duplicate hamesha naya draft hi banta hai
-      rentAmount: (json['rent_amount'] as num?)?.toDouble(),
+      rentAmount: _parseFlexibleDouble(json['rent_amount']),
       rentNegotiable: json['rent_negotiable'] ?? false,
-      securityDeposit: (json['security_deposit'] as num?)?.toDouble(),
+      securityDeposit: _parseFlexibleDouble(json['security_deposit']),
       securityDepositNegotiable: json['security_deposit_negotiable'] ?? false,
-      maintenanceAmount: (json['maintenance_amount'] as num?)?.toDouble(),
+      maintenanceAmount: _parseFlexibleDouble(json['maintenance_amount']),
       maintenanceNegotiable: json['maintenance_negotiable'] ?? false,
-      totalPrice: (json['total_price'] as num?)?.toDouble(),
+      totalPrice: _parseFlexibleDouble(json['total_price']),
       totalPriceNegotiable: json['total_price_negotiable'] ?? false,
-      ratePerUnit: (json['rate_per_unit'] as num?)?.toDouble(),
+      ratePerUnit: _parseFlexibleDouble(json['rate_per_unit']),
       ratePerUnitNegotiable: json['rate_per_unit_negotiable'] ?? false,
-      bookingPrice: (json['booking_price'] as num?)?.toDouble(),
+      bookingPrice: _parseFlexibleDouble(json['booking_price']),
       bookingPriceNegotiable: json['booking_price_negotiable'] ?? false,
     );
 

@@ -58,7 +58,7 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       final project = await ProjectService.fetchProjectRaw(widget.projectId);
       _propertyTypeId = project['property_type_pk'];
       _projectListingType = project['listing_type'] ?? 'rent';
-      _startingPrice = (project['starting_price'] as num?)?.toDouble();
+      _startingPrice = _parseFlexibleDouble(project['starting_price']);
 
       final projectAttrValues = project['attribute_values'] as List<dynamic>? ?? [];
       final Map<int, String> commonValues = {};
@@ -79,6 +79,15 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
         _isLoadingProjectInfo = false;
       });
     }
+  }
+
+  // DRF DecimalField ko JSON mein String bhejta hai (e.g. "1000.00"), number nahi -
+  // ye helper dono format (String ya number) ko safely double mein badal deta hai.
+  double? _parseFlexibleDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 
   Future<void> _loadUnits() async {
