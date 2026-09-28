@@ -222,9 +222,24 @@ class _PostPropertyPricingScreenState extends State<PostPropertyPricingScreen> {
                 items: unitOptions
                     .map((opt) => DropdownMenuItem(
                           value: opt['value'],
-                          child: Text(opt['label']!, style: const TextStyle(fontSize: 12)),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(opt['label']!),
+                          ),
                         ))
                     .toList(),
+                // selectedItemBuilder: (context) => unitOptions.map((opt) {
+                //   return Align(
+                //     alignment: Alignment.centerLeft,
+                //     child: Text(
+                //       opt['label']!,
+                //       style: const TextStyle(fontSize: 11),
+                //       overflow: TextOverflow.ellipsis,
+                //       maxLines: 1,
+                //     ),
+                //   );
+                // }).toList(),
                 onChanged: (value) {
                   if (value != null) setState(() => _priceUnit = value);
                 },

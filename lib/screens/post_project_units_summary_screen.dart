@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../services/property_service.dart';
 import '../services/project_service.dart';
 import 'post_project_description_screen.dart';
+import 'post_project_unit_media_screen.dart';
 
 class PostProjectUnitsSummaryScreen extends StatefulWidget {
   final int projectId;
@@ -20,9 +20,6 @@ class _PostProjectUnitsSummaryScreenState
   bool _isLoading = true;
   String? _loadError;
   bool _isSubmitting = false;
-  final Set<int> _uploadingUnitIds = {};
-
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -54,23 +51,15 @@ class _PostProjectUnitsSummaryScreenState
     return media.where((m) => m['media_type'] == 'image').length;
   }
 
-  Future<void> _addPhotosToUnit(int unitId) async {
-    final List<XFile> picked = await _picker.pickMultiImage();
-    if (picked.isEmpty) return;
-
-    setState(() => _uploadingUnitIds.add(unitId));
-
-    for (final xfile in picked) {
-      final result = await PropertyService.uploadImage(propertyId: unitId, filePath: xfile.path);
-      if (!mounted) return;
-      if (result["success"] != true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("One of the photos failed to upload.")),
-        );
-      }
-    }
-
-    setState(() => _uploadingUnitIds.remove(unitId));
+  // NAYA: Ab "Add Photos" seedha upload nahi karta - poora Media screen kholta hai
+  // jahan preview, reorder aur cover-photo set karne ka option bhi hai.
+  Future<void> _openUnitMedia(int unitId, String unitTitle) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostProjectUnitMediaScreen(unitId: unitId, unitTitle: unitTitle),
+      ),
+    );
     await _loadUnits();
   }
 
@@ -160,7 +149,7 @@ class _PostProjectUnitsSummaryScreenState
                   padding: const EdgeInsets.all(16),
                   children: [
                     const Text(
-                      "Review all units before submitting for admin approval. You can add photos here too.",
+                      "Review all units before submitting for admin approval. You can manage photos here too.",
                       style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                     const SizedBox(height: 16),
@@ -173,9 +162,9 @@ class _PostProjectUnitsSummaryScreenState
                     else
                       ..._units.map((unit) {
                         final unitId = unit['id'];
+                        final unitTitle = unit['title'] ?? '';
                         final photoCount = _photoCount(unit);
                         final hasNoPhotos = photoCount == 0;
-                        final isUploading = _uploadingUnitIds.contains(unitId);
 
                         return Card(
                           child: Padding(
@@ -183,7 +172,7 @@ class _PostProjectUnitsSummaryScreenState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(unit['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text(unitTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 4),
                                 Text("Status: ${unit['status']}"),
                                 Text("$photoCount photo(s)"),
@@ -199,14 +188,9 @@ class _PostProjectUnitsSummaryScreenState
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: OutlinedButton.icon(
-                                    onPressed: isUploading ? null : () => _addPhotosToUnit(unitId),
-                                    icon: isUploading
-                                        ? const SizedBox(
-                                            height: 14,
-                                            width: 14,
-                                            child: CircularProgressIndicator(strokeWidth: 2))
-                                        : const Icon(Icons.add_photo_alternate_outlined, size: 18),
-                                    label: Text(isUploading ? "Uploading..." : "Add Photos"),
+                                    onPressed: () => _openUnitMedia(unitId, unitTitle),
+                                    icon: const Icon(Icons.photo_library_outlined, size: 18),
+                                    label: const Text("Manage Photos"),
                                   ),
                                 ),
                               ],

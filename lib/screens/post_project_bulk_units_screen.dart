@@ -4,6 +4,7 @@ import '../models/attribute_definition_model.dart';
 import '../services/project_service.dart';
 import '../services/property_service.dart';
 import '../services/property_type_service.dart';
+import '../utils/number_utils.dart';
 import 'post_project_unit_edit_screen.dart';
 import 'post_project_media_screen.dart';
 
@@ -18,11 +19,9 @@ class PostProjectBulkUnitsScreen extends StatefulWidget {
 
 class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen> {
   // ---------- Project info (listing type, starting price, property type) ----------
-  bool _isLoadingProjectInfo = true;
   String? _projectInfoError;
   int? _propertyTypeId;
   String _projectListingType = 'rent';
-  double? _startingPrice;
   Map<int, String> _commonAttributeValues = {};
 
   // ---------- Existing units ----------
@@ -36,8 +35,6 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
 
   final List<UnitDraft> _draftUnits = [];
 
-  bool _isChangingListingType = false;
-
   // ---------- Batch creation ----------
   bool _isCreatingUnits = false;
   String? _creationProgressText;
@@ -50,15 +47,11 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   }
 
   Future<void> _loadProjectInfo() async {
-    setState(() {
-      _isLoadingProjectInfo = true;
-      _projectInfoError = null;
-    });
+    setState(() => _projectInfoError = null);
     try {
       final project = await ProjectService.fetchProjectRaw(widget.projectId);
-      _propertyTypeId = project['property_type_pk'];
-      _projectListingType = project['listing_type'] ?? 'rent';
-      _startingPrice = _parseFlexibleDouble(project['starting_price']);
+      final propertyTypeId = project['property_type_pk'];
+      final listingType = project['listing_type'] ?? 'rent';
 
       final projectAttrValues = project['attribute_values'] as List<dynamic>? ?? [];
       final Map<int, String> commonValues = {};
@@ -70,24 +63,13 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       }
 
       setState(() {
+        _propertyTypeId = propertyTypeId;
+        _projectListingType = listingType;
         _commonAttributeValues = commonValues;
-        _isLoadingProjectInfo = false;
       });
     } catch (e) {
-      setState(() {
-        _projectInfoError = "Could not load project info.";
-        _isLoadingProjectInfo = false;
-      });
+      setState(() => _projectInfoError = "Could not load project info.");
     }
-  }
-
-  // DRF DecimalField ko JSON mein String bhejta hai (e.g. "1000.00"), number nahi -
-  // ye helper dono format (String ya number) ko safely double mein badal deta hai.
-  double? _parseFlexibleDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
   }
 
   Future<void> _loadUnits() async {
@@ -145,96 +127,42 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   List<int> get _checkboxAttributeIds =>
       (_attributeDefinitions ?? []).where((a) => a.attributeType == 'checkbox').map((a) => a.id).toList();
 
-  Future<void> _showChangeListingTypeDialog() async {
-    if (_draftUnits.isNotEmpty) {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text("Change Listing Type"),
-          content: const Text(
-            "Changing the listing type will clear the new units listed below (not yet created). Continue?",
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
-            ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("Continue")),
-          ],
-        ),
-      );
-      if (proceed != true) return;
-    }
-
-    String newListingType = _projectListingType;
-    final priceController = TextEditingController(text: _startingPrice?.toString() ?? '');
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: const Text("Project Listing Type"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: newListingType,
-                    decoration: const InputDecoration(labelText: "Listing Type", border: OutlineInputBorder()),
-                    items: const [
-                      DropdownMenuItem(value: 'rent', child: Text('Rent')),
-                      DropdownMenuItem(value: 'sale', child: Text('Sale')),
-                    ],
-                    onChanged: (v) => setDialogState(() => newListingType = v ?? 'rent'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: priceController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(
-                      labelText: newListingType == 'rent' ? "Starting Rent From" : "Starting Price From",
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
-                ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("Save")),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (saved != true) return;
-
-    setState(() => _isChangingListingType = true);
-
-    final result = await ProjectService.updateListingTypeAndPrice(
-      projectId: widget.projectId,
-      listingType: newListingType,
-      startingPrice: double.tryParse(priceController.text.trim()),
-      startingPriceUnit: newListingType == 'sale' ? 'per_sqft' : 'per_month',
-    );
-
-    setState(() => _isChangingListingType = false);
-
-    if (!mounted) return;
-
-    if (result["success"] == true) {
+  // NAYA: Unit Add/Edit screen se wapas aane ke baad project-listing-type dobara sync karte hain -
+  // kyunki listing type ab wahin se (dropdown ke through) badli ja sakti hai.
+  Future<bool> _syncAfterUnitEditReturn() async {
+    final oldType = _projectListingType;
+    await _loadProjectInfo();
+    final typeChanged = _projectListingType != oldType;
+    if (typeChanged) {
       setState(() {
         _draftUnits.clear();
-        _attributeDefinitions = null; // listing type badla, attributes ka applicable-filter dobara chahiye
+        _attributeDefinitions = null;
       });
-      await _loadProjectInfo();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Could not update listing type. Please try again.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Listing type was changed to ${_projectListingType == 'rent' ? 'Rent' : 'Sale'}. New units list was cleared.",
+            ),
+          ),
+        );
+      }
     }
+    return typeChanged;
+  }
+
+  bool _blockIfUnitsStillLoading() {
+    if (_isLoadingUnits) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please wait, loading existing units...")),
+      );
+      return true;
+    }
+    return false;
   }
 
   Future<void> _addNewUnit() async {
+    if (_blockIfUnitsStillLoading()) return;
     final attrs = await _ensureAttributesLoaded();
     if (attrs == null || !mounted) return;
 
@@ -242,17 +170,23 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
+          projectId: widget.projectId,
+          propertyTypeId: _propertyTypeId!,
           initialDraft: UnitDraft(listingType: _projectListingType),
           attributeDefinitions: attrs,
-          fixedListingType: _projectListingType,
+          initialListingType: _projectListingType,
+          existingUnitsCount: _existingUnits.length,
+          draftUnitsCount: _draftUnits.length,
           commonAttributeValues: _commonAttributeValues,
         ),
       ),
     );
+    await _syncAfterUnitEditReturn();
     if (result != null) setState(() => _draftUnits.add(result));
   }
 
   Future<void> _editDraftUnit(int index) async {
+    if (_blockIfUnitsStillLoading()) return;
     final attrs = await _ensureAttributesLoaded();
     if (attrs == null || !mounted) return;
 
@@ -260,17 +194,31 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
+          projectId: widget.projectId,
+          propertyTypeId: _propertyTypeId!,
           initialDraft: _draftUnits[index],
           attributeDefinitions: attrs,
-          fixedListingType: _projectListingType,
+          initialListingType: _projectListingType,
+          existingUnitsCount: _existingUnits.length,
+          draftUnitsCount: _draftUnits.length,
           commonAttributeValues: _commonAttributeValues,
         ),
       ),
     );
-    if (result != null) setState(() => _draftUnits[index] = result);
+    final typeChanged = await _syncAfterUnitEditReturn();
+    if (result != null) {
+      setState(() {
+        if (typeChanged || index >= _draftUnits.length) {
+          _draftUnits.add(result);
+        } else {
+          _draftUnits[index] = result;
+        }
+      });
+    }
   }
 
   Future<void> _duplicateDraftUnit(int index) async {
+    if (_blockIfUnitsStillLoading()) return;
     final attrs = await _ensureAttributesLoaded();
     if (attrs == null || !mounted) return;
 
@@ -279,13 +227,18 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
+          projectId: widget.projectId,
+          propertyTypeId: _propertyTypeId!,
           initialDraft: duplicated,
           attributeDefinitions: attrs,
-          fixedListingType: _projectListingType,
+          initialListingType: _projectListingType,
+          existingUnitsCount: _existingUnits.length,
+          draftUnitsCount: _draftUnits.length,
           commonAttributeValues: _commonAttributeValues,
         ),
       ),
     );
+    await _syncAfterUnitEditReturn();
     if (result != null) setState(() => _draftUnits.add(result));
   }
 
@@ -294,6 +247,7 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   }
 
   Future<void> _duplicateExistingUnit(Map<String, dynamic> unit) async {
+    if (_blockIfUnitsStillLoading()) return;
     final attrs = await _ensureAttributesLoaded();
     if (attrs == null || !mounted) return;
 
@@ -302,13 +256,18 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       context,
       MaterialPageRoute(
         builder: (_) => PostProjectUnitEditScreen(
+          projectId: widget.projectId,
+          propertyTypeId: _propertyTypeId!,
           initialDraft: draft,
           attributeDefinitions: attrs,
-          fixedListingType: _projectListingType,
+          initialListingType: _projectListingType,
+          existingUnitsCount: _existingUnits.length,
+          draftUnitsCount: _draftUnits.length,
           commonAttributeValues: _commonAttributeValues,
         ),
       ),
     );
+    await _syncAfterUnitEditReturn();
     if (result != null) setState(() => _draftUnits.add(result));
   }
 
@@ -338,7 +297,7 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
     }
   }
 
-  // ---------- NAYA: Batch-wise creation (5-5 units) ----------
+  // ---------- Batch-wise creation (5-5 units) ----------
   Future<void> _createAllUnits() async {
     if (_draftUnits.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -367,7 +326,6 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
 
       if (result["success"] == true) {
         setState(() {
-          // Sirf successfully-created batch hi list se hataate hain
           _draftUnits.removeRange(0, batch.length);
         });
         createdCount += batch.length;
@@ -412,12 +370,14 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
   }
 
   Widget _existingUnitCard(Map<String, dynamic> unit) {
+    final rawAmount = unit['listing_type'] == 'rent'
+        ? (unit['rent_amount'] ?? unit['price'])
+        : (unit['total_price'] ?? unit['price']);
+    final displayAmount = NumberUtils.formatPrice(NumberUtils.parseFlexibleDouble(rawAmount));
     return Card(
       child: ListTile(
         title: Text(unit['title'] ?? ''),
-        subtitle: Text(
-          "Status: ${unit['status']}  •  ${unit['listing_type'] == 'rent' ? '₹${unit['rent_amount'] ?? unit['price']}' : '₹${unit['total_price'] ?? unit['price']}'}",
-        ),
+        subtitle: Text("Status: ${unit['status']}  •  ₹$displayAmount"),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -464,45 +424,16 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
     );
   }
 
-  Widget _projectInfoHeader() {
-    if (_isLoadingProjectInfo) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 10),
-            Text("Loading project info..."),
-          ],
-        ),
-      );
-    }
-    if (_projectInfoError != null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-        child: Row(
-          children: [
-            Expanded(child: Text(_projectInfoError!, style: const TextStyle(color: Colors.red))),
-            TextButton(onPressed: _loadProjectInfo, child: const Text("Retry")),
-          ],
-        ),
-      );
-    }
+  Widget _projectInfoErrorBanner() {
+    if (_projectInfoError == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              "Project Listing Type: ${_projectListingType == 'rent' ? 'Rent' : 'Sale'}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          _isChangingListingType
-              ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : TextButton(onPressed: _showChangeListingTypeDialog, child: const Text("Change")),
+          Expanded(child: Text(_projectInfoError!, style: const TextStyle(color: Colors.red))),
+          TextButton(onPressed: _loadProjectInfo, child: const Text("Retry")),
         ],
       ),
     );
@@ -547,8 +478,7 @@ class _PostProjectBulkUnitsScreenState extends State<PostProjectBulkUnitsScreen>
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _projectInfoHeader(),
-          const SizedBox(height: 16),
+          _projectInfoErrorBanner(),
 
           _unitsSection(),
 

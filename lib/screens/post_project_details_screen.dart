@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../main.dart';
+import '../utils/number_utils.dart';
 import '../services/location_service.dart';
 import '../services/project_service.dart';
 import '../services/property_type_service.dart';
@@ -17,7 +19,7 @@ class PostProjectDetailsScreen extends StatefulWidget {
   State<PostProjectDetailsScreen> createState() => _PostProjectDetailsScreenState();
 }
 
-class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
+class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> with RouteAware {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _builderController = TextEditingController();
   final TextEditingController _totalUnitsController = TextEditingController();
@@ -64,6 +66,71 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
     super.initState();
     _localityFocusNode.addListener(_onLocalityFocusChanged);
     _loadDefaultStartingPriceUnit();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context) as PageRoute);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    _nameController.dispose();
+    _builderController.dispose();
+    _totalUnitsController.dispose();
+    _startingPriceController.dispose();
+    _searchController.dispose();
+    _pincodeController.dispose();
+    _countryController.dispose();
+    _cityController.dispose();
+    _localityController.dispose();
+    _scrollController.dispose();
+    _localityFocusNode.dispose();
+    super.dispose();
+  }
+
+  // NAYA: Jab koi upar ki screen (jaise Bulk Units -> Unit Add, jahan se
+  // listing type change ho sakti hai) band hokar wapas is screen par aaye,
+  // tab listing type + starting price ko server se fresh reload karte hain.
+  @override
+  void didPopNext() {
+    _refreshListingTypeAndPrice();
+  }
+
+  Future<void> _refreshListingTypeAndPrice() async {
+    try {
+      final project = await ProjectService.fetchProjectRaw(widget.projectId);
+      final serverListingType = project['listing_type'] as String?;
+      if (serverListingType == null || serverListingType.isEmpty) return;
+
+      final serverStartingPrice = NumberUtils.parseFlexibleDouble(project['starting_price']);
+      final serverStartingPriceUnit = project['starting_price_unit'] as String?;
+
+      final changed = serverListingType != _listingType;
+
+      if (!mounted) return;
+      setState(() {
+        _listingType = serverListingType;
+        _startingPriceController.text = NumberUtils.formatPrice(serverStartingPrice);
+        if (serverStartingPriceUnit != null && serverStartingPriceUnit.isNotEmpty) {
+          _startingPriceUnit = serverStartingPriceUnit;
+        }
+      });
+
+      if (changed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Listing type was updated to ${serverListingType == 'rent' ? 'Rent' : 'Sale'} from a later step.",
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // best-effort - agar fail ho to purani values hi dikhti rahengi
+    }
   }
 
   // Project banate waqt property_type already set ho chuka hai (draft create ke time) -
@@ -122,22 +189,6 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
     } catch (e) {
       // best-effort
     }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _builderController.dispose();
-    _totalUnitsController.dispose();
-    _startingPriceController.dispose();
-    _searchController.dispose();
-    _pincodeController.dispose();
-    _countryController.dispose();
-    _cityController.dispose();
-    _localityController.dispose();
-    _scrollController.dispose();
-    _localityFocusNode.dispose();
-    super.dispose();
   }
 
   String? _matchState(String rawState) {
@@ -467,9 +518,26 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
                       items: _rentUnitOptions
                           .map((opt) => DropdownMenuItem(
                                 value: opt['value'],
-                                child: Text(opt['label']!, style: const TextStyle(fontSize: 12)),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(opt['label']!),
+                                ),
                               ))
                           .toList(),
+                      // NAYA: "band" dropdown ka display selectedItemBuilder se force-fit karte
+                      // hain - isse container chahe kitna bhi narrow ho, overflow kabhi nahi hoga.
+                      // selectedItemBuilder: (context) => _rentUnitOptions.map((opt) {
+                      //   return Align(
+                      //     alignment: Alignment.centerLeft,
+                      //     child: Text(
+                      //       opt['label']!,
+                      //       style: const TextStyle(fontSize: 11),
+                      //       overflow: TextOverflow.ellipsis,
+                      //       maxLines: 1,
+                      //     ),
+                      //   );
+                      // }).toList(),
                       onChanged: (value) {
                         if (value != null) setState(() => _startingPriceUnit = value);
                       },
@@ -522,6 +590,7 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: DropdownButtonFormField<String>(
                 value: _selectedState,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: "State",
                   border: OutlineInputBorder(),
@@ -545,6 +614,7 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: DropdownButtonFormField<String>(
                 value: _selectedDistrict,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: _selectedState == null ? "District (select State first)" : "District",
                   border: const OutlineInputBorder(),

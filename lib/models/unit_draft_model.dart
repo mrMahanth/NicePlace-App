@@ -1,9 +1,12 @@
+import '../utils/number_utils.dart';
+
 // Local-only model: ek unit jo abhi tak sirf phone mein compose ho raha hai,
 // server pe "Create All Units" dabane tak nahi jaata.
 class UnitDraft {
   String unitNumber;
   String listingType; // 'rent' or 'sale'
   String status; // 'draft', 'sold', 'rented'
+  String priceUnit; // e.g. 'per_month' (rent) or 'per_sqft' (sale)
 
   double? rentAmount;
   bool rentNegotiable;
@@ -25,6 +28,7 @@ class UnitDraft {
     this.unitNumber = '',
     this.listingType = 'rent',
     this.status = 'draft',
+    this.priceUnit = 'per_month',
     this.rentAmount,
     this.rentNegotiable = false,
     this.securityDeposit,
@@ -46,6 +50,7 @@ class UnitDraft {
       unitNumber: '',
       listingType: listingType,
       status: status,
+      priceUnit: priceUnit,
       rentAmount: rentAmount,
       rentNegotiable: rentNegotiable,
       securityDeposit: securityDeposit,
@@ -62,11 +67,32 @@ class UnitDraft {
     );
   }
 
+  // NAYA: Listing type badalne par saari pricing values + attributes reset kar dete hain,
+  // kyunki naye type ke fields aur applicable attributes purani values se match nahi karte.
+  // priceUnit ka naya default caller (Unit Edit screen) khud set karega, kyunki usse
+  // property-type-based smart default chahiye hota hai jo yeh model nahi jaanta.
+  void applyListingTypeChange(String newListingType) {
+    listingType = newListingType;
+    rentAmount = null;
+    rentNegotiable = false;
+    securityDeposit = null;
+    securityDepositNegotiable = false;
+    maintenanceAmount = null;
+    maintenanceNegotiable = false;
+    totalPrice = null;
+    totalPriceNegotiable = false;
+    ratePerUnit = null;
+    ratePerUnitNegotiable = false;
+    bookingPrice = null;
+    bookingPriceNegotiable = false;
+    attributeValues = {};
+  }
+
   String priceSummary() {
     if (listingType == 'rent') {
-      return rentAmount != null ? "Rent: ₹${rentAmount!.toStringAsFixed(0)}" : "Rent: not set";
+      return rentAmount != null ? "Rent: ₹${NumberUtils.formatPrice(rentAmount)}" : "Rent: not set";
     } else {
-      return totalPrice != null ? "Price: ₹${totalPrice!.toStringAsFixed(0)}" : "Price: not set";
+      return totalPrice != null ? "Price: ₹${NumberUtils.formatPrice(totalPrice)}" : "Price: not set";
     }
   }
 
@@ -88,6 +114,7 @@ class UnitDraft {
       "unit_number": unitNumber,
       "listing_type": listingType,
       "status": status,
+      "price_unit": priceUnit,
       "attributes": attrs,
     };
 
@@ -110,23 +137,22 @@ class UnitDraft {
     return json;
   }
 
-  // DRF DecimalField ko JSON mein String bhejta hai (e.g. "1000.00"), number nahi -
-  // ye helper dono format (String ya number) ko safely double mein badal deta hai.
-  static double? _parseFlexibleDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
-  }
+  // Ab yeh seedha shared NumberUtils.parseFlexibleDouble ko call karta hai,
+  // taaki poore app mein sirf EK hi jagah yeh parsing-logic maintain ho.
+  static double? _parseFlexibleDouble(dynamic value) => NumberUtils.parseFlexibleDouble(value);
 
   factory UnitDraft.fromExistingUnitJson(
     Map<String, dynamic> json,
     List<int> checkboxAttributeIds,
   ) {
+    final listingType = json['listing_type'] ?? 'rent';
     final draft = UnitDraft(
       unitNumber: '', // blank-numbered, per spec
-      listingType: json['listing_type'] ?? 'rent',
+      listingType: listingType,
       status: 'draft', // duplicate hamesha naya draft hi banta hai
+      priceUnit: (json['price_unit'] as String?)?.isNotEmpty == true
+          ? json['price_unit']
+          : (listingType == 'rent' ? 'per_month' : 'per_sqft'),
       rentAmount: _parseFlexibleDouble(json['rent_amount']),
       rentNegotiable: json['rent_negotiable'] ?? false,
       securityDeposit: _parseFlexibleDouble(json['security_deposit']),
