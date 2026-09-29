@@ -447,17 +447,6 @@ class _PostProjectUnitEditScreenState extends State<PostProjectUnitEditScreen> {
                           ),
                         ))
                     .toList(),
-                // selectedItemBuilder: (context) => unitOptions.map((opt) {
-                //   return Align(
-                //     alignment: Alignment.centerLeft,
-                //     child: Text(
-                //       opt['label']!,
-                //       style: const TextStyle(fontSize: 11),
-                //       overflow: TextOverflow.ellipsis,
-                //       maxLines: 1,
-                //     ),
-                //   );
-                // }).toList(),
                 onChanged: (value) {
                   if (value != null) setState(() => _priceUnit = value);
                 },

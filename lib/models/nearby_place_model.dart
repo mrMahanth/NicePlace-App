@@ -40,7 +40,7 @@ class NearbyPlaceModel {
       categoryName: json['category_name'] ?? '',
       categoryIconUrl: json['category_icon'],
       name: json['name'] ?? '',
-      distanceValue: (json['distance_value'] as num?)?.toDouble(),
+      distanceValue: double.tryParse(json['distance_value']?.toString() ?? ''),
       distanceUnit: json['distance_unit'] ?? 'km',
     );
   }

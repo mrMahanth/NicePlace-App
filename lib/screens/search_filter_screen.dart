@@ -288,7 +288,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                       child: AbsorbPointer(
                         child: AnimatedHintSearchField(
                           controller: _searchDisplayController,
-                          hints: const ['Search locality, project, or keyword...'],
+                          hints: const ['Locality or Anything...'],
                         ),
                       ),
                     ),

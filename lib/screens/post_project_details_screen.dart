@@ -368,6 +368,20 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> wit
       return;
     }
 
+    final startingPriceValue = double.tryParse(_startingPriceController.text.trim());
+    if (startingPriceValue == null || startingPriceValue <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _listingType == 'rent'
+                ? "Starting Rent is required."
+                : "Starting Price is required.",
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     final detailsResult = await ProjectService.updateProjectDetails(
@@ -384,7 +398,7 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> wit
       longitude: _selectedPoint?.longitude,
       totalUnits: int.tryParse(_totalUnitsController.text.trim()),
       listingType: _listingType,
-      startingPrice: double.tryParse(_startingPriceController.text.trim()),
+      startingPrice: startingPriceValue,
       startingPriceUnit: _listingType == 'rent' ? _startingPriceUnit : 'per_sqft',
     );
 
@@ -497,8 +511,8 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> wit
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: _listingType == 'rent'
-                          ? "Starting Rent From (optional)"
-                          : "Starting Price From (optional)",
+                          ? "Starting Rent From *"
+                          : "Starting Price From *",
                       suffixText: _listingType == 'sale' ? "/Sq.Ft." : null,
                       border: const OutlineInputBorder(),
                     ),
@@ -525,19 +539,6 @@ class _PostProjectDetailsScreenState extends State<PostProjectDetailsScreen> wit
                                 ),
                               ))
                           .toList(),
-                      // NAYA: "band" dropdown ka display selectedItemBuilder se force-fit karte
-                      // hain - isse container chahe kitna bhi narrow ho, overflow kabhi nahi hoga.
-                      // selectedItemBuilder: (context) => _rentUnitOptions.map((opt) {
-                      //   return Align(
-                      //     alignment: Alignment.centerLeft,
-                      //     child: Text(
-                      //       opt['label']!,
-                      //       style: const TextStyle(fontSize: 11),
-                      //       overflow: TextOverflow.ellipsis,
-                      //       maxLines: 1,
-                      //     ),
-                      //   );
-                      // }).toList(),
                       onChanged: (value) {
                         if (value != null) setState(() => _startingPriceUnit = value);
                       },

@@ -164,6 +164,53 @@ class PropertyService {
     }
   }
 
+  // ---------- Detail screen ke liye fresh fetch (token ke saath) ----------
+  // Logged-in ho to Authorization header jaata hai, tabhi backend owner_phone deta hai.
+  // Token expire ho to ek baar refresh karke retry karta hai. Refresh bhi fail ho
+  // to anonymous fetch karta hai (property dikhegi, bas owner_phone null aayega).
+  static Future<Map<String, dynamic>> fetchPropertyDetail(int propertyId) async {
+    final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/");
+
+    try {
+      final token = await ApiService.getAccessToken();
+      http.Response response;
+
+      if (token == null) {
+        response = await ApiService.getWithRetry(url);
+      } else {
+        response = await ApiService.getWithRetry(
+          url,
+          headers: {"Authorization": "Bearer $token"},
+        );
+
+        if (response.statusCode == 401) {
+          final refreshed = await ApiService.refreshAccessToken();
+          if (refreshed) {
+            final newToken = await ApiService.getAccessToken();
+            response = await ApiService.getWithRetry(
+              url,
+              headers: {"Authorization": "Bearer $newToken"},
+            );
+          } else {
+            // Session poori tarah expire: anonymous fallback
+            response = await ApiService.getWithRetry(url);
+          }
+        }
+      }
+
+      if (response.statusCode == 200) {
+        final property = Property.fromJson(jsonDecode(response.body));
+        return {"success": true, "data": property};
+      } else if (response.statusCode == 404) {
+        return {"success": false, "notFound": true, "error": "Property not found."};
+      } else {
+        return {"success": false, "error": "Could not load property. Please try again."};
+      }
+    } catch (e) {
+      return {"success": false, "error": "Network problem. Please check your internet and try again."};
+    }
+  }
+
   static Future<Map<String, dynamic>> updateAttributes({
     required int propertyId,
     required Map<String, String> attributes,
