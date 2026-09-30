@@ -27,10 +27,10 @@ class InquiryService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return {"success": true, "data": jsonDecode(response.body)};
       } else {
-        return {"success": false, "error": response.body};
+        return {"success": false, "statusCode": response.statusCode, "error": response.body};
       }
     } catch (e) {
-      return {"success": false, "error": "Login required"};
+      return {"success": false, "statusCode": 0, "error": "Login required"};
     }
   }
 

@@ -38,6 +38,35 @@ class ProjectService {
     }
   }
 
+  // ---------- "My Projects" screen ke liye - logged-in user ke apne saare projects ----------
+  static Future<List<Map<String, dynamic>>> fetchMyProjects() async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/");
+      return http.get(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception("Failed to load your projects");
+    }
+  }
+
+  // ---------- Project delete karna (sirf draft projects ke paas units nahi hote, safe hai) ----------
+  static Future<Map<String, dynamic>> deleteProject(int projectId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/");
+      return http.delete(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
   // ---------- Project Details save karna ----------
   static Future<Map<String, dynamic>> updateProjectDetails({
     required int projectId,

@@ -69,6 +69,7 @@ class PropertyAttribute {
   final String unitValue;
   final String unitLabel;
   final String? file;
+  final bool showOnCard;
 
   PropertyAttribute({
     this.id = 0,
@@ -78,6 +79,7 @@ class PropertyAttribute {
     this.attributeType = 'textbox',
     this.unitLabel = '',
     this.file,
+    this.showOnCard = false,
   });
 
   factory PropertyAttribute.fromJson(Map<String, dynamic> json) {
@@ -89,6 +91,7 @@ class PropertyAttribute {
       unitValue: json['unit_value'] ?? '',
       unitLabel: json['unit_label'] ?? '',
       file: json['file'],
+      showOnCard: json['show_on_card'] ?? false,
     );
   }
 }
@@ -103,6 +106,7 @@ class Property {
   final String listedAs;
   final String propertyType;
   final String status;
+  final String rejectionReason;
   final String locality;
   final String city;
   final String pincode;
@@ -154,6 +158,7 @@ class Property {
     required this.listedAs,
     required this.propertyType,
     required this.status,
+    this.rejectionReason = '',
     required this.locality,
     required this.city,
     this.pincode = '',
@@ -198,6 +203,7 @@ class Property {
       listedAs: json['listed_as'] ?? '',
       propertyType: json['property_type'] ?? '',
       status: json['status'] ?? '',
+      rejectionReason: json['rejection_reason'] ?? '',
       locality: json['locality'] ?? '',
       city: json['city'] ?? '',
       pincode: json['pincode'] ?? '',

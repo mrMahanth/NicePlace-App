@@ -23,6 +23,8 @@ import '../widgets/tag_badge.dart';
 import '../models/user_profile_model.dart';
 import '../services/api_service.dart';
 import '../services/user_profile_service.dart';
+import '../models/home_carousels_model.dart';
+import '../widgets/property_card_modern.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -49,12 +51,20 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   late Future<List<SliderModel>> _slidersFuture;
+  Future<HomeCarouselsResponse>? _homeCarouselsFuture;
 
   String? _city;
   int? _propertyTypeId;
   String? _listingType;
   double? _minPrice;
   double? _maxPrice;
+  bool _featuredOnly = false;
+  String? _ordering;
+  double? _nearLat;
+  double? _nearLng;
+
+  double? _homeLat;  // stores GPS coords for reuse by "Near You See All"
+  double? _homeLng;
 
   // Current-location display state
   String? _locationCity;
@@ -67,9 +77,10 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadProperties();
     _loadUnreadCount();
+    _loadAvatarInfo();
     _refreshLocation();
     _slidersFuture = SliderService.fetchActiveSliders();
-    _loadAvatarInfo();
+    _loadHomeCarousels(); // === add this — loads immediately without lat/lng ===
   }
 
   @override
@@ -87,6 +98,10 @@ class _HomeScreenState extends State<HomeScreen> {
         minPrice: _minPrice,
         maxPrice: _maxPrice,
         search: _searchController.text.trim(),
+        featured: _featuredOnly,
+        ordering: _ordering,
+        nearLat: _nearLat,
+        nearLng: _nearLng,
       );
     });
   }
@@ -97,6 +112,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() => _unreadCount = count);
     }
+  }
+
+  void _loadHomeCarousels({double? lat, double? lng}) {
+    setState(() {
+      _homeCarouselsFuture = PropertyService.fetchHomeCarousels(
+        latitude: lat,
+        longitude: lng,
+      );
+    });
   }
 
   Future<void> _loadAvatarInfo() async {
@@ -130,20 +154,23 @@ class _HomeScreenState extends State<HomeScreen> {
         _locationLocality = result.locality;
         _locationLoading = false;
         _locationDetected = true;
+        _homeLat = result.latitude;   // === add ===
+        _homeLng = result.longitude;  // === add ===
       });
+      _loadHomeCarousels(lat: result.latitude, lng: result.longitude); // === add ===
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _locationCity = 'Set location';
-        _locationLocality = null;
-        _locationLoading = false;
-        _locationDetected = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+        if (!mounted) return;
+        setState(() {
+          _locationCity = 'Set location';
+          _locationLocality = null;
+          _locationLoading = false;
+          _locationDetected = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
     }
-  }
 
   Future<void> _openLocationPicker() async {
     final picked = await showLocationPickerSheet(
@@ -300,6 +327,64 @@ class _HomeScreenState extends State<HomeScreen> {
       _listingType != null ||
       _minPrice != null ||
       _maxPrice != null;
+
+  Widget _buildCarouselSection({
+    required String title,
+    required List<Property> properties,
+    VoidCallback? onSeeAll,
+  }) {
+    if (properties.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+                if (onSeeAll != null)
+                  GestureDetector(
+                    onTap: onSeeAll,
+                    child: const Text(
+                      'See All',
+                      style: TextStyle(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 240,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 16, right: 4),
+              itemCount: properties.length,
+              itemBuilder: (context, index) {
+                final property = properties[index];
+                return PropertyCardModern(
+                  property: property,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => PropertyDetailScreen(property: property)),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -489,6 +574,80 @@ class _HomeScreenState extends State<HomeScreen> {
                 return HeroSliderBanner(
                   sliders: sliders,
                   onSliderTap: _handleSliderTap,
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: FutureBuilder<HomeCarouselsResponse>(
+              future: _homeCarouselsFuture,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final data = snapshot.data!;
+
+                return Column(
+                  children: [
+                    _buildCarouselSection(
+                      title: '⭐ Featured Properties',
+                      properties: data.featured,
+                      onSeeAll: () {
+                        setState(() {
+                          _featuredOnly = true;
+                          _propertyTypeId = null;
+                          _ordering = null;
+                          _nearLat = null;
+                          _nearLng = null;
+                        });
+                        _loadProperties();
+                      },
+                    ),
+                    _buildCarouselSection(
+                      title: '📍 Properties Near You',
+                      properties: data.nearYou,
+                      onSeeAll: (_homeLat != null && _homeLng != null)
+                          ? () {
+                              setState(() {
+                                _nearLat = _homeLat;
+                                _nearLng = _homeLng;
+                                _featuredOnly = false;
+                                _ordering = null;
+                                _propertyTypeId = null;
+                              });
+                              _loadProperties();
+                            }
+                          : null,
+                    ),
+                    _buildCarouselSection(
+                      title: '🆕 Recently Added',
+                      properties: data.recentlyAdded,
+                      onSeeAll: () {
+                        setState(() {
+                          _ordering = 'recent';
+                          _featuredOnly = false;
+                          _nearLat = null;
+                          _nearLng = null;
+                          _propertyTypeId = null;
+                        });
+                        _loadProperties();
+                      },
+                    ),
+                    ...data.byType.map(
+                      (typeCarousel) => _buildCarouselSection(
+                        title: typeCarousel.propertyTypeName,
+                        properties: typeCarousel.properties,
+                        onSeeAll: () {
+                          setState(() {
+                            _propertyTypeId = typeCarousel.propertyTypeId;
+                            _featuredOnly = false;
+                            _ordering = null;
+                            _nearLat = null;
+                            _nearLng = null;
+                          });
+                          _loadProperties();
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),

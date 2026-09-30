@@ -6,6 +6,8 @@ import '../services/user_profile_service.dart';
 import '../utils/auth_guard.dart';
 import 'inquiries_list_screen.dart';
 import 'my_profile_screen.dart';
+import 'my_properties_screen.dart';
+import 'my_projects_screen.dart';
 import 'tags/tags_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'photo_viewer_screen.dart';
@@ -162,44 +164,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(title: const Text("Profile")),
       body: Column(
         children: [
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
           const SizedBox(height: 24),
-          Stack(
-            children: [
-              GestureDetector(
-                onTap: _isLoggedIn
-                    ? () async {
-                        final changed = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PhotoViewerScreen(photoUrl: _profilePhoto),
-                          ),
-                        );
-                        if (changed == true) _checkLoginStatus();
-                      }
-                    : null,
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.grey.shade200,
-                  backgroundImage: _profilePhoto != null
-                      ? CachedNetworkImageProvider(_profilePhoto!)
-                      : null,
-                  child: _profilePhoto == null
-                      ? const Icon(Icons.person, size: 50)
-                      : null,
-                ),
-              ),
-              if (_isLoggedIn && _displayedTag != null)
-                Positioned(
-                  bottom: 2,
-                  right: 2,
-                  child: TagBadgeIcon(
-                    badgeIcon: _displayedTag!.badgeIcon,
-                    badgeColor: _displayedTag!.badgeColor,
-                    size: 22,
+            Center(
+              child: Stack(
+                children: [
+                  GestureDetector(
+                    onTap: _isLoggedIn
+                        ? () async {
+                            final changed = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PhotoViewerScreen(photoUrl: _profilePhoto),
+                              ),
+                            );
+                            if (changed == true) _checkLoginStatus();
+                          }
+                        : null,
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: _profilePhoto != null
+                          ? CachedNetworkImageProvider(_profilePhoto!)
+                          : null,
+                      child: _profilePhoto == null
+                          ? const Icon(Icons.person, size: 50)
+                          : null,
+                    ),
                   ),
-                ),
-            ],
-          ),
+                  if (_isLoggedIn && _displayedTag != null)
+                    Positioned(
+                      bottom: 2,
+                      right: 2,
+                      child: TagBadgeIcon(
+                        badgeIcon: _displayedTag!.badgeIcon,
+                        badgeColor: _displayedTag!.badgeColor,
+                        size: 22,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -222,6 +230,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
               subtitle: const Text("View your details, tags and account info"),
               trailing: const Icon(Icons.chevron_right),
               onTap: _openMyProfile,
+            ),
+
+          if (_isLoggedIn)
+            ListTile(
+              leading: const Icon(Icons.home_work_outlined),
+              title: const Text("My Properties"),
+              subtitle: const Text("Individual listings you've posted"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyPropertiesScreen()),
+              ),
+            ),
+
+          if (_isLoggedIn)
+            ListTile(
+              leading: const Icon(Icons.apartment_outlined),
+              title: const Text("My Projects"),
+              subtitle: const Text("Projects and their units"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyProjectsScreen()),
+              ),
             ),
 
           if (_isLoggedIn)
@@ -255,11 +287,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _openMessages,
           ),
           const Divider(),
-
-          const Spacer(),
+              ],
+            ),
+          ),
 
           Padding(
-            padding: const EdgeInsets.only(bottom: 32),
+            padding: const EdgeInsets.only(bottom: 10),
             child: _isLoggedIn
                 ? ElevatedButton.icon(
                     icon: const Icon(Icons.logout),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/property_model.dart';
 import 'api_service.dart';
+import '../models/home_carousels_model.dart';
 
 class PropertyService {
   static Future<List<Property>> fetchProperties({
@@ -11,6 +12,10 @@ class PropertyService {
     double? minPrice,
     double? maxPrice,
     String? search,
+    bool? featured,
+    String? ordering,
+    double? nearLat,
+    double? nearLng,
   }) async {
     final queryParams = <String, String>{};
     if (city != null && city.isNotEmpty) queryParams['city'] = city;
@@ -19,6 +24,10 @@ class PropertyService {
     if (minPrice != null) queryParams['min_price'] = minPrice.toString();
     if (maxPrice != null) queryParams['max_price'] = maxPrice.toString();
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (featured == true) queryParams['featured'] = 'true';
+    if (ordering != null) queryParams['ordering'] = ordering;
+    if (nearLat != null) queryParams['lat'] = nearLat.toString();
+    if (nearLng != null) queryParams['lng'] = nearLng.toString();
 
     final url = Uri.parse("${ApiService.baseUrl}/properties/")
         .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
@@ -30,6 +39,27 @@ class PropertyService {
       return jsonList.map((json) => Property.fromJson(json)).toList();
     } else {
       throw Exception("Failed to load properties");
+    }
+  }
+
+  // ---------- Home screen ke saare carousels ek hi call mein ----------
+  static Future<HomeCarouselsResponse> fetchHomeCarousels({
+    double? latitude,
+    double? longitude,
+  }) async {
+    final queryParams = <String, String>{};
+    if (latitude != null) queryParams['lat'] = latitude.toString();
+    if (longitude != null) queryParams['lng'] = longitude.toString();
+
+    final url = Uri.parse("${ApiService.baseUrl}/properties/home_carousels/")
+        .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      return HomeCarouselsResponse.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception("Failed to load home carousels");
     }
   }
 
@@ -501,6 +531,27 @@ class PropertyService {
       return jsonList.cast<Map<String, dynamic>>();
     } else {
       throw Exception("Failed to load units");
+    }
+  }
+
+  // ---------- "My Properties" screen ke liye - sirf standalone properties ----------
+  // my_properties/ (bina project filter ke) project ke units bhi laut deta hai,
+  // isliye yahan client-side filter karte hain (project == null) - project ke
+  // units "My Projects" ke andar (unit-details screen par) dikhte hain, yahan nahi.
+  static Future<List<Property>> fetchMyProperties() async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/my_properties/");
+      return http.get(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList
+          .where((j) => j['project'] == null)
+          .map((j) => Property.fromJson(j))
+          .toList();
+    } else {
+      throw Exception("Failed to load your properties");
     }
   }
 
