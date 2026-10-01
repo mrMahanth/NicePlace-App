@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'post_property_type_screen.dart';
 import '../widgets/quick_links_sheet.dart';
+import '../utils/profile_guard.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -11,8 +12,10 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  void _onNavTap(int index) {
+  Future<void> _onNavTap(int index) async {
     if (index == 1) {
+      final ready = await ProfileGuard.ensureReadyToPost(context);
+      if (!ready || !mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const PostPropertyTypeScreen()),
