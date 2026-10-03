@@ -12,6 +12,7 @@ import 'tags/tags_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'photo_viewer_screen.dart';
 import '../widgets/tag_badge.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLoggedOut;
@@ -82,8 +83,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleLoginTap() async {
-    final loggedIn = await AuthGuard.ensureLoggedIn(context);
-    if (loggedIn) _checkLoginStatus();
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+    if (result == true) _checkLoginStatus();
   }
 
   Future<void> _confirmLogout() async {

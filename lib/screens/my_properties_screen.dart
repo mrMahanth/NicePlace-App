@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/property_model.dart';
 import '../services/property_service.dart';
+import '../services/tenancy_service.dart';
 import '../utils/number_utils.dart';
+import 'post_property_basic_details_screen.dart';
+import 'post_project_bulk_units_screen.dart';
+import 'rent_tracking_screen.dart';
 
 class MyPropertiesScreen extends StatefulWidget {
   const MyPropertiesScreen({super.key});
@@ -103,17 +108,18 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
     return firstImage.isNotEmpty ? firstImage.first.file : null;
   }
 
+  // ---------- DELETE (har status ke liye available) ----------
   Future<void> _confirmDelete(Property property) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text("Delete Listing"),
+        title: const Text("Remove Listing"),
         content: Text(
-          "Delete \"${property.title.isEmpty ? 'this draft' : property.title}\"? This cannot be undone.",
+          "Remove \"${property.title.isEmpty ? 'this listing' : property.title}\"? This cannot be undone.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("Delete")),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("Remove")),
         ],
       ),
     );
@@ -126,21 +132,84 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
       setState(() => _properties.removeWhere((p) => p.id == property.id));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Could not delete. Please try again.")),
+        const SnackBar(content: Text("Could not remove. Please try again.")),
       );
     }
   }
 
-  void _editComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Editing existing listings is coming soon.")),
+  // ---------- EDIT (sahi route par) ----------
+  void _onEdit(Property property) {
+    if (property.projectId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PostProjectBulkUnitsScreen(projectId: property.projectId!),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PostPropertyBasicDetailsScreen(propertyId: property.id),
+        ),
+      );
+    }
+  }
+
+  // ---------- RESUBMIT ----------
+  Future<void> _onResubmit(Property property) async {
+    final result = await PropertyService.resubmit(property.id);
+    if (!mounted) return;
+    if (result["success"] == true) {
+      _loadProperties();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not resubmit. Please try again.")),
+      );
+    }
+  }
+
+  // ---------- MARK SOLD ----------
+  Future<void> _onMarkSold(Property property) async {
+    final result = await PropertyService.markSold(property.id);
+    if (!mounted) return;
+    if (result["success"] == true) {
+      _loadProperties();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not update status. Please try again.")),
+      );
+    }
+  }
+
+  // ---------- MARK RENTED (OTP flow) ----------
+  Future<void> _openMarkRentedSheet(Property property) async {
+    final completed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) => _MarkRentedSheet(property: property),
     );
+    if (completed == true) _loadProperties();
+  }
+
+  // ---------- TRACK RENT ----------
+  void _openRentTracking(Property property) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RentTrackingScreen(
+          propertyId: property.id,
+          propertyTitle: property.title,
+          defaultRentAmount: property.rentAmount ?? double.tryParse(property.price),
+        ),
+      ),
+    ).then((_) => _loadProperties()); // End Tenancy ke baad status wapas 'live' ho sakta hai
   }
 
   Widget _propertyCard(Property property) {
     final coverUrl = _coverPhotoUrl(property);
-    final isDraft = property.status == 'draft';
-    final showRejection = isDraft && property.rejectionReason.isNotEmpty;
+    final showRejection = property.status == 'draft' && property.rejectionReason.isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -208,15 +277,36 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
                     children: [
-                      TextButton(onPressed: _editComingSoon, child: const Text("Edit")),
-                      if (isDraft)
+                      if (property.status == 'live' && property.listingType != 'sale')
                         TextButton(
-                          onPressed: () => _confirmDelete(property),
-                          style: TextButton.styleFrom(foregroundColor: Colors.red),
-                          child: const Text("Delete"),
+                          onPressed: () => _openMarkRentedSheet(property),
+                          child: const Text("Mark Rented"),
                         ),
+                      if (property.status == 'live' && property.listingType != 'rent')
+                        TextButton(
+                          onPressed: () => _onMarkSold(property),
+                          child: const Text("Mark Sold"),
+                        ),
+                      if (property.status == 'rented')
+                        TextButton(
+                          onPressed: () => _openRentTracking(property),
+                          child: const Text("Track Rent"),
+                        ),
+                      TextButton(onPressed: () => _onEdit(property), child: const Text("Edit")),
+                      if (showRejection)
+                        TextButton(
+                          onPressed: () => _onResubmit(property),
+                          child: const Text("Resubmit"),
+                        ),
+                      TextButton(
+                        onPressed: () => _confirmDelete(property),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text("Remove"),
+                      ),
                     ],
                   ),
                 ],
@@ -245,37 +335,321 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    SizedBox(
-                      height: 44,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        children: _filterOptions.map((opt) {
-                          final selected = _statusFilter == opt['value'];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(opt['label']!),
-                              selected: selected,
-                              onSelected: (_) => setState(() => _statusFilter = opt['value']!),
-                            ),
-                          );
-                        }).toList(),
+              : RefreshIndicator(
+                  onRefresh: _loadProperties,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 44,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          children: _filterOptions.map((opt) {
+                            final selected = _statusFilter == opt['value'];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(opt['label']!),
+                                selected: selected,
+                                onSelected: (_) => setState(() => _statusFilter = opt['value']!),
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: _filteredProperties.isEmpty
-                          ? const Center(
-                              child: Text("No properties found.", style: TextStyle(color: Colors.black54)))
-                          : ListView(
-                              padding: const EdgeInsets.all(12),
-                              children: _filteredProperties.map(_propertyCard).toList(),
-                            ),
-                    ),
-                  ],
+                      Expanded(
+                        child: _filteredProperties.isEmpty
+                            ? ListView(
+                                children: const [
+                                  SizedBox(height: 100),
+                                  Center(
+                                    child: Text("No properties found.", style: TextStyle(color: Colors.black54)),
+                                  ),
+                                ],
+                              )
+                            : ListView(
+                                padding: const EdgeInsets.all(12),
+                                children: _filteredProperties.map(_propertyCard).toList(),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
+    );
+  }
+}
+
+// ---------------- Mark Rented bottom sheet (3-step, web jaisa) ----------------
+
+class _MarkRentedSheet extends StatefulWidget {
+  final Property property;
+  const _MarkRentedSheet({required this.property});
+
+  @override
+  State<_MarkRentedSheet> createState() => _MarkRentedSheetState();
+}
+
+enum _RentStep { phone, otp, notRegistered }
+
+class _MarkRentedSheetState extends State<_MarkRentedSheet> {
+  _RentStep _step = _RentStep.phone;
+  final _phoneController = TextEditingController();
+  final _otpController = TextEditingController();
+  final _renterNameController = TextEditingController();
+  String? _registeredUsername;
+  String? _error;
+  bool _isBusy = false;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _otpController.dispose();
+    _renterNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleCheckPhone() async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _error = "Enter a phone number.");
+      return;
+    }
+    setState(() {
+      _isBusy = true;
+      _error = null;
+    });
+
+    final result = await TenancyService.checkPhone(phone);
+    if (!mounted) return;
+
+    if (result["success"] != true) {
+      setState(() {
+        _isBusy = false;
+        _error = "Something went wrong. Please try again.";
+      });
+      return;
+    }
+
+    final data = result["data"] as Map<String, dynamic>;
+    if (data["registered"] == true) {
+      _registeredUsername = data["username"];
+      await TenancyService.sendOtp(phone);
+      if (!mounted) return;
+      setState(() {
+        _isBusy = false;
+        _step = _RentStep.otp;
+      });
+    } else {
+      setState(() {
+        _isBusy = false;
+        _step = _RentStep.notRegistered;
+      });
+    }
+  }
+
+  Future<void> _handleVerifyOtp() async {
+    setState(() {
+      _isBusy = true;
+      _error = null;
+    });
+
+    final result = await TenancyService.verifyAndCreate(
+      phone: _phoneController.text.trim(),
+      otp: _otpController.text.trim(),
+      propertyId: widget.property.id,
+    );
+    if (!mounted) return;
+
+    if (result["success"] == true) {
+      await _markPropertyRented();
+    } else {
+      setState(() {
+        _isBusy = false;
+        _error = result["error"]?.toString() ?? "Invalid or expired code. Please try again.";
+      });
+    }
+  }
+
+  Future<void> _handleUnverifiedSave() async {
+    setState(() {
+      _isBusy = true;
+      _error = null;
+    });
+
+    final result = await TenancyService.createUnverified(
+      propertyId: widget.property.id,
+      renterName: _renterNameController.text.trim(),
+      renterPhone: _phoneController.text.trim(),
+    );
+    if (!mounted) return;
+
+    if (result["success"] == true) {
+      await _markPropertyRented();
+    } else {
+      setState(() {
+        _isBusy = false;
+        _error = result["error"]?.toString() ?? "Could not save. Please try again.";
+      });
+    }
+  }
+
+  Future<void> _markPropertyRented() async {
+    final result = await PropertyService.markRented(widget.property.id);
+    if (!mounted) return;
+    if (result["success"] == true) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() {
+        _isBusy = false;
+        _error = "Could not update status. Please try again.";
+      });
+    }
+  }
+
+  Future<void> _openWhatsappInvite() async {
+    final phone = _phoneController.text.trim();
+    final text = Uri.encodeComponent(
+      "The owner has added you as a renter on NicePlace. Please download the app to view your rental details.",
+    );
+    final url = Uri.parse("https://wa.me/91$phone?text=$text");
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not open WhatsApp.")),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            ),
+          if (_step == _RentStep.phone) ...[
+            const Text("Find Renter", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text("Enter the renter's phone number to check if they're on NicePlace.",
+                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: "Renter's phone number",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isBusy ? null : () => Navigator.pop(context),
+                    child: const Text("Cancel"),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isBusy ? null : _handleCheckPhone,
+                    child: _isBusy
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text("Check"),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (_step == _RentStep.otp) ...[
+            Text("Verify ${_registeredUsername ?? ''}",
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text(
+              "A verification code has been sent to their NicePlace notifications. Ask them for the code.",
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _otpController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Enter code", border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isBusy ? null : () => Navigator.pop(context),
+                    child: const Text("Cancel"),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isBusy ? null : _handleVerifyOtp,
+                    child: _isBusy
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text("Verify & Confirm"),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (_step == _RentStep.notRegistered) ...[
+            const Text("Not on NicePlace Yet", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text(
+              "This number isn't registered. You can invite them, or save their details without verification.",
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _renterNameController,
+              decoration: const InputDecoration(labelText: "Renter's Name", border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.chat),
+              label: const Text("Send WhatsApp Invite"),
+              onPressed: _openWhatsappInvite,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isBusy ? null : () => Navigator.pop(context),
+                    child: const Text("Cancel"),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isBusy ? null : _handleUnverifiedSave,
+                    child: _isBusy
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text("Save Without Verification"),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -25,6 +25,8 @@ import '../services/api_service.dart';
 import '../services/user_profile_service.dart';
 import '../models/home_carousels_model.dart';
 import '../widgets/property_card_modern.dart';
+import 'login_screen.dart';
+import 'property_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -87,6 +89,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onPullToRefresh() async {
+    _loadProperties();
+    _loadUnreadCount();
+    _loadAvatarInfo();
+    await _refreshLocation();
   }
 
   void _loadProperties() {
@@ -365,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 240,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 16, right: 4),
+              padding: const EdgeInsets.only(left: 2, right: 6),
               itemCount: properties.length,
               itemBuilder: (context, index) {
                 final property = properties[index];
@@ -478,19 +487,29 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (innerContext) => Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  GestureDetector(
-                    onTap: () => Scaffold.of(innerContext).openEndDrawer(),
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.white,
-                      backgroundImage: _avatarPhoto != null
-                          ? CachedNetworkImageProvider(_avatarPhoto!)
-                          : null,
-                      child: _avatarPhoto == null
-                          ? const Icon(Icons.person, color: AppColors.primary)
-                          : null,
-                    ),
+                GestureDetector(
+                  onTap: () async {
+                    if (_avatarLoggedIn) {
+                      Scaffold.of(innerContext).openEndDrawer();
+                    } else {
+                      final result = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      );
+                      if (result == true) _loadAvatarInfo();
+                    }
+                  },
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white,
+                    backgroundImage: _avatarPhoto != null
+                        ? CachedNetworkImageProvider(_avatarPhoto!)
+                        : null,
+                    child: _avatarPhoto == null
+                        ? const Icon(Icons.person, color: AppColors.primary)
+                        : null,
                   ),
+                ),
                   if (_avatarLoggedIn && _avatarTag != null)
                     Positioned(
                       bottom: -1,
@@ -508,8 +527,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       right: 0,
                       child: GestureDetector(
                         onTap: () async {
-                          final loggedIn = await AuthGuard.ensureLoggedIn(context);
-                          if (loggedIn) _loadAvatarInfo();
+                          final result = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          );
+                          if (result == true) _loadAvatarInfo();
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
@@ -532,7 +554,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: _onPullToRefresh,
+        child: CustomScrollView(
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
@@ -591,14 +615,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: '⭐ Featured Properties',
                       properties: data.featured,
                       onSeeAll: () {
-                        setState(() {
-                          _featuredOnly = true;
-                          _propertyTypeId = null;
-                          _ordering = null;
-                          _nearLat = null;
-                          _nearLng = null;
-                        });
-                        _loadProperties();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PropertyListScreen(
+                              title: 'Featured Properties',
+                              featured: true,
+                            ),
+                          ),
+                        );
                       },
                     ),
                     _buildCarouselSection(
@@ -606,14 +631,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       properties: data.nearYou,
                       onSeeAll: (_homeLat != null && _homeLng != null)
                           ? () {
-                              setState(() {
-                                _nearLat = _homeLat;
-                                _nearLng = _homeLng;
-                                _featuredOnly = false;
-                                _ordering = null;
-                                _propertyTypeId = null;
-                              });
-                              _loadProperties();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PropertyListScreen(
+                                    title: 'Properties Near You',
+                                    nearLat: _homeLat,
+                                    nearLng: _homeLng,
+                                  ),
+                                ),
+                              );
                             }
                           : null,
                     ),
@@ -621,14 +648,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: '🆕 Recently Added',
                       properties: data.recentlyAdded,
                       onSeeAll: () {
-                        setState(() {
-                          _ordering = 'recent';
-                          _featuredOnly = false;
-                          _nearLat = null;
-                          _nearLng = null;
-                          _propertyTypeId = null;
-                        });
-                        _loadProperties();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PropertyListScreen(
+                              title: 'Recently Added',
+                              ordering: 'recent',
+                            ),
+                          ),
+                        );
                       },
                     ),
                     ...data.byType.map(
@@ -636,14 +664,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         title: typeCarousel.propertyTypeName,
                         properties: typeCarousel.properties,
                         onSeeAll: () {
-                          setState(() {
-                            _propertyTypeId = typeCarousel.propertyTypeId;
-                            _featuredOnly = false;
-                            _ordering = null;
-                            _nearLat = null;
-                            _nearLng = null;
-                          });
-                          _loadProperties();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PropertyListScreen(
+                                title: typeCarousel.propertyTypeName,
+                                propertyTypeId: typeCarousel.propertyTypeId,
+                              ),
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -678,7 +707,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) {
                     final property = properties[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                       child: InkWell(
                         onTap: () {
                           Navigator.push(
@@ -714,7 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             if (property.tags.isNotEmpty)
                               Padding(
-                                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                                padding: const EdgeInsets.only(left: 2, right: 2, bottom: 10),
                                 child: Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
@@ -738,6 +767,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ],
+      ),
       ),
     );
   }

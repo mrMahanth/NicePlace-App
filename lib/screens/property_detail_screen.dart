@@ -488,22 +488,28 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.call),
-                  label: const Text("Call Owner"),
+                  icon: const Icon(Icons.call, size: 18),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: const Text("Call Owner"),
+                  ),
                   onPressed: _isCalling ? null : _onCallOwner,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.message),
+                  icon: const Icon(Icons.message, size: 18),
                   label: _isSending
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text("Send Inquiry"),
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: const Text("Send Inquiry"),
+                        ),
                   onPressed: _isSending ? null : _onSendInquiry,
                 ),
               ),

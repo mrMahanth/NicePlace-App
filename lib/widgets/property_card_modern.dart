@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/property_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/price_formatter.dart';
 
 /// A vertical property card with the cover image, a bottom gradient overlay
 /// showing price + locality, small badges in the top corners, and a strip
@@ -28,13 +29,14 @@ class PropertyCardModern extends StatelessWidget {
   }
 
   String get _displayPrice {
-    // Falls back sensibly across rent / sale / legacy price fields.
     if (property.listingType == 'rent' && property.rentAmount != null) {
       return '₹${property.rentAmount!.toStringAsFixed(0)}/month';
     }
     if (property.totalPrice != null) {
-      return '₹${property.totalPrice!.toStringAsFixed(0)}';
+      return formatIndianPrice(property.totalPrice!);
     }
+    final legacy = double.tryParse(property.price);
+    if (legacy != null) return formatIndianPrice(legacy);
     return '₹${property.price}';
   }
 
@@ -47,7 +49,7 @@ class PropertyCardModern extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: width,
-        margin: const EdgeInsets.only(right: 12),
+        margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.cardBorder),

@@ -568,4 +568,60 @@ class PropertyService {
       return {"success": false, "error": response.body};
     }
   }
+
+  // ---------- Mark Sold (status-only patch) ----------
+  static Future<Map<String, dynamic>> markSold(int propertyId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/");
+      return http.patch(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"status": "sold"}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Mark Rented (status-only patch) ----------
+  static Future<Map<String, dynamic>> markRented(int propertyId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/");
+      return http.patch(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"status": "rented"}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+
+  // ---------- Resubmit after rejection ----------
+  static Future<Map<String, dynamic>> resubmit(int propertyId) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/resubmit/");
+      return http.post(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
 }
