@@ -7,6 +7,7 @@ import '../utils/number_utils.dart';
 import 'post_property_basic_details_screen.dart';
 import 'post_project_bulk_units_screen.dart';
 import 'rent_tracking_screen.dart';
+import 'property_detail_screen.dart';
 
 class MyPropertiesScreen extends StatefulWidget {
   const MyPropertiesScreen({super.key});
@@ -93,11 +94,22 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
   }
 
   String _priceLabel(Property p) {
-    double? amount = p.listingType == 'rent' ? p.rentAmount : p.totalPrice;
-    amount ??= double.tryParse(p.price);
-    if (amount == null || amount == 0) return 'Price not set';
-    final suffix = _unitSuffixes[p.priceUnit] ?? '';
-    return '₹${NumberUtils.formatPrice(amount)}$suffix';
+    if (p.listingType == 'sale') {
+      final rate = p.ratePerUnit;
+      if (rate != null && rate > 0) {
+        final suffix = p.priceUnit == 'per_katha' ? '/katha' : '/sq.ft.';
+        return '₹${NumberUtils.formatPrice(rate)}$suffix';
+      }
+      final total = p.totalPrice ?? double.tryParse(p.price);
+      if (total == null || total == 0) return 'Price not set';
+      return '₹${NumberUtils.formatPrice(total)}'; // total price par koi per-unit suffix nahi
+    }
+
+    final rentAmount = p.rentAmount ?? double.tryParse(p.price);
+    if (rentAmount == null || rentAmount == 0) return 'Price not set';
+    const rentSuffixes = {'per_day': '/day', 'per_month': '/month', 'per_year': '/year'};
+    final suffix = rentSuffixes[p.priceUnit] ?? '/month';
+    return '₹${NumberUtils.formatPrice(rentAmount)}$suffix';
   }
 
   String? _coverPhotoUrl(Property p) {
@@ -207,13 +219,33 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
     ).then((_) => _loadProperties()); // End Tenancy ke baad status wapas 'live' ho sakta hai
   }
 
+  Widget _actionButton(String label, VoidCallback onPressed, {Color? color}) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: color,
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 13)),
+    );
+  }
+
   Widget _propertyCard(Property property) {
     final coverUrl = _coverPhotoUrl(property);
     final showRejection = property.status == 'draft' && property.rejectionReason.isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PropertyDetailScreen(property: property)),
+          );
+        },
+        child: Padding(
         padding: const EdgeInsets.all(10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,35 +310,19 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                   ],
                   const SizedBox(height: 8),
                   Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
+                    spacing: 2,
+                    runSpacing: 0,
                     children: [
                       if (property.status == 'live' && property.listingType != 'sale')
-                        TextButton(
-                          onPressed: () => _openMarkRentedSheet(property),
-                          child: const Text("Mark Rented"),
-                        ),
+                        _actionButton("Mark Rented", () => _openMarkRentedSheet(property)),
                       if (property.status == 'live' && property.listingType != 'rent')
-                        TextButton(
-                          onPressed: () => _onMarkSold(property),
-                          child: const Text("Mark Sold"),
-                        ),
+                        _actionButton("Mark Sold", () => _onMarkSold(property)),
                       if (property.status == 'rented')
-                        TextButton(
-                          onPressed: () => _openRentTracking(property),
-                          child: const Text("Track Rent"),
-                        ),
-                      TextButton(onPressed: () => _onEdit(property), child: const Text("Edit")),
+                        _actionButton("Track Rent", () => _openRentTracking(property)),
+                      _actionButton("Edit", () => _onEdit(property)),
                       if (showRejection)
-                        TextButton(
-                          onPressed: () => _onResubmit(property),
-                          child: const Text("Resubmit"),
-                        ),
-                      TextButton(
-                        onPressed: () => _confirmDelete(property),
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
-                        child: const Text("Remove"),
-                      ),
+                        _actionButton("Resubmit", () => _onResubmit(property)),
+                      _actionButton("Remove", () => _confirmDelete(property), color: Colors.red),
                     ],
                   ),
                 ],
@@ -314,6 +330,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -619,6 +636,8 @@ class _MarkRentedSheetState extends State<_MarkRentedSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _renterNameController,
+              keyboardType: TextInputType.name,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: "Renter's Name", border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),

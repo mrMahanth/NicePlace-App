@@ -9,8 +9,18 @@ import 'post_property_pricing_screen.dart';
 
 class PostPropertyBasicDetailsScreen extends StatefulWidget {
   final int propertyId;
+  // NAYA: Edit flow ke liye - diya gaya ho to fields isi se pre-fill hote hain,
+  // aur isEditMode=true hone par "Save & Continue" ki jagah "Save" + wapas pop hota hai
+  // (Edit Menu screen par), agle wizard-step par push karne ki jagah.
+  final Map<String, dynamic>? initialData;
+  final bool isEditMode;
 
-  const PostPropertyBasicDetailsScreen({super.key, required this.propertyId});
+  const PostPropertyBasicDetailsScreen({
+    super.key,
+    required this.propertyId,
+    this.initialData,
+    this.isEditMode = false,
+  });
 
   @override
   State<PostPropertyBasicDetailsScreen> createState() =>
@@ -52,6 +62,42 @@ class _PostPropertyBasicDetailsScreenState
   void initState() {
     super.initState();
     _localityFocusNode.addListener(_onLocalityFocusChanged);
+    _prefillFromInitialData();
+  }
+
+  // NAYA: Edit flow mein pehle se maujood property-data se fields bharte hain.
+  void _prefillFromInitialData() {
+    final data = widget.initialData;
+    if (data == null) return;
+
+    _titleController.text = data['title'] ?? '';
+    _pincodeController.text = data['pincode'] ?? '';
+    _countryController.text = (data['country'] as String?)?.isNotEmpty == true
+        ? data['country']
+        : 'India';
+    _cityController.text = data['city'] ?? '';
+    _localityController.text = data['locality'] ?? '';
+
+    final rawState = data['state'] as String?;
+    final rawDistrict = data['district'] as String?;
+    _selectedState = (rawState != null && rawState.isNotEmpty) ? _matchState(rawState) : null;
+    _selectedDistrict = (_selectedState != null && rawDistrict != null && rawDistrict.isNotEmpty)
+        ? _matchDistrict(_selectedState!, rawDistrict)
+        : null;
+
+    final lat = data['latitude'];
+    final lng = data['longitude'];
+    if (lat != null && lng != null) {
+      _selectedPoint = LatLng(
+        (lat as num).toDouble(),
+        (lng as num).toDouble(),
+      );
+    }
+
+    // Edit mein location pehle se maujood hai - isliye seedha "confirmed" state se shuru,
+    // user chahe to "Edit" dabakar dobara khol sakta hai.
+    final hasLocation = _cityController.text.isNotEmpty || _localityController.text.isNotEmpty;
+    _locationConfirmed = hasLocation;
   }
 
   void _onLocalityFocusChanged() {
@@ -244,12 +290,10 @@ class _PostPropertyBasicDetailsScreenState
       return;
     }
 
-    // Keyboard pehle band karte hain, taaki layout resize scroll-position ko disturb na kare
     FocusScope.of(context).unfocus();
 
     setState(() => _locationConfirmed = true);
 
-    // Keyboard-close animation aur naye layout ko settle hone ka time dete hain
     await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
@@ -258,7 +302,7 @@ class _PostPropertyBasicDetailsScreenState
       await Scrollable.ensureVisible(
         targetContext,
         duration: const Duration(milliseconds: 300),
-        alignment: 1.0, // viewport ke bottom tak laata hai
+        alignment: 1.0,
       );
     }
   }
@@ -296,12 +340,17 @@ class _PostPropertyBasicDetailsScreenState
     if (!mounted) return;
 
     if (result["success"] == true) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PostPropertyPricingScreen(propertyId: widget.propertyId),
-        ),
-      );
+      if (widget.isEditMode) {
+        // Edit flow: agle wizard-step par push nahi karte, seedha Edit Menu par wapas
+        Navigator.pop(context, true);
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PostPropertyPricingScreen(propertyId: widget.propertyId),
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Could not save. Please try again.")),
@@ -329,7 +378,7 @@ class _PostPropertyBasicDetailsScreenState
         _selectedState != null ? (indiaStatesDistricts[_selectedState] ?? []) : <String>[];
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Basic Details")),
+      appBar: AppBar(title: Text(widget.isEditMode ? "Edit Basic Details" : "Basic Details")),
       body: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.all(12),
@@ -382,6 +431,7 @@ class _PostPropertyBasicDetailsScreenState
               padding: const EdgeInsets.only(bottom: 10),
               child: DropdownButtonFormField<String>(
                 value: _selectedState,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: "State",
                   border: OutlineInputBorder(),
@@ -405,6 +455,7 @@ class _PostPropertyBasicDetailsScreenState
               padding: const EdgeInsets.only(bottom: 10),
               child: DropdownButtonFormField<String>(
                 value: _selectedDistrict,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: _selectedState == null ? "District (select State first)" : "District",
                   border: const OutlineInputBorder(),
@@ -534,8 +585,6 @@ class _PostPropertyBasicDetailsScreenState
 
             const SizedBox(height: 12),
 
-            // Ye poora section (confirmed-status + button) key se wrapped hai
-            // taaki confirm karne ke baad exactly yahan tak scroll ho sake
             Container(
               key: _bottomSectionKey,
               child: Column(
@@ -565,7 +614,7 @@ class _PostPropertyBasicDetailsScreenState
                     child: _isSaving
                         ? const SizedBox(
                             height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text("Save & Continue"),
+                        : Text(widget.isEditMode ? "Save" : "Save & Continue"),
                   ),
                 ],
               ),
