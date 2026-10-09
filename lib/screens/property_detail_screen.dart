@@ -10,31 +10,7 @@ import '../services/property_service.dart';
 import '../services/user_profile_service.dart';
 import '../utils/auth_guard.dart';
 import '../widgets/tag_badge.dart';
-
-// Backend DecimalFields kabhi "5000.00" jaisi string mein aate hain -
-// isliye Indian-style comma formatting yahan khud likhi hai.
-String _formatRupees(double value) {
-  final isNegative = value < 0;
-  final absVal = value.abs();
-  final wholePart = absVal.truncate();
-  final decimalPart = absVal - wholePart;
-
-  String numStr = wholePart.toString();
-  String lastThree = numStr.length > 3 ? numStr.substring(numStr.length - 3) : numStr;
-  String otherDigits = numStr.length > 3 ? numStr.substring(0, numStr.length - 3) : '';
-
-  if (otherDigits.isNotEmpty) {
-    otherDigits = otherDigits.replaceAllMapped(
-        RegExp(r'\B(?=(\d{2})+(?!\d))'), (match) => ',');
-    lastThree = ',$lastThree';
-  }
-
-  String formatted = otherDigits + lastThree;
-  if (decimalPart > 0) {
-    formatted += '.${(decimalPart * 100).round().toString().padLeft(2, '0')}';
-  }
-  return (isNegative ? '-' : '') + '₹$formatted';
-}
+import '../widgets/property_price_block.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final Property property;
@@ -193,119 +169,6 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
         .where((part) => part.trim().isNotEmpty)
         .toList();
     return parts.join(", ");
-  }
-
-  // ---------- PRICE BLOCK ----------
-  Widget _negotiableBadge(bool show) {
-    if (!show) return const SizedBox.shrink();
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEEF7EE),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Text(
-        "Negotiable",
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2AA876)),
-      ),
-    );
-  }
-
-  Widget _buildPriceBlock(Property p) {
-    if (p.listingType == 'sale') {
-      final ratePerUnit = p.ratePerUnit;
-      final totalPrice = p.totalPrice ?? double.tryParse(p.price); // legacy fallback
-      final hasRate = ratePerUnit != null && ratePerUnit > 0;
-      final rateUnitLabel = p.priceUnit == 'per_katha' ? 'Katha' : 'Sq.Ft.';
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  hasRate
-                      ? "${_formatRupees(ratePerUnit)}/$rateUnitLabel"
-                      : (totalPrice != null ? _formatRupees(totalPrice) : "Price on request"),
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green),
-                ),
-              ),
-              _negotiableBadge(hasRate ? p.ratePerUnitNegotiable : p.totalPriceNegotiable),
-            ],
-          ),
-          if (hasRate && totalPrice != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: [
-                  Text("Total Price: ${_formatRupees(totalPrice)}",
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                  _negotiableBadge(p.totalPriceNegotiable),
-                ],
-              ),
-            ),
-          if (p.bookingPrice != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: [
-                  Text("Booking Amount: ${_formatRupees(p.bookingPrice!)}",
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  _negotiableBadge(p.bookingPriceNegotiable),
-                ],
-              ),
-            ),
-        ],
-      );
-    }
-
-    // ---- Rent ----
-    const rentUnitLabels = {'per_day': 'day', 'per_month': 'month', 'per_year': 'year'};
-    final rentUnitLabel = rentUnitLabels[p.priceUnit] ?? 'month';
-    final rentAmount = p.rentAmount ?? double.tryParse(p.price); // legacy fallback
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                rentAmount != null ? "${_formatRupees(rentAmount)}/$rentUnitLabel" : "Price on request",
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green),
-              ),
-            ),
-            _negotiableBadge(p.rentNegotiable),
-          ],
-        ),
-        if (p.securityDeposit != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              children: [
-                Text("Security Deposit: ${_formatRupees(p.securityDeposit!)}",
-                    style: const TextStyle(fontSize: 15)),
-                _negotiableBadge(p.securityDepositNegotiable),
-              ],
-            ),
-          ),
-        if (p.maintenanceAmount != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              children: [
-                Text("Maintenance: ${_formatRupees(p.maintenanceAmount!)}",
-                    style: const TextStyle(fontSize: 15)),
-                _negotiableBadge(p.maintenanceNegotiable),
-              ],
-            ),
-          ),
-      ],
-    );
   }
 
   // ---------- STATUS BADGE ----------
@@ -675,7 +538,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   if (_buildStatusBadge(_property) != null) _buildStatusBadge(_property)!,
-                  _buildPriceBlock(_property),
+                  PropertyPriceBlock(property: _property),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,

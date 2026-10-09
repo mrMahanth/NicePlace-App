@@ -29,33 +29,35 @@ String _indianCommaFormat(double amount) {
 }
 
 /// Poori app mein price dikhane ka EK hi tareeka.
-/// Sale + rate_per_unit ho to "₹5,000/Sq.Ft."; warna total price.
-/// Rent mein rent_amount, nahi to legacy `price`.
+String rateUnitLabel(Property p) => p.priceUnit == 'per_katha' ? 'Katha' : 'Sq.Ft.';
+
+String rentUnitLabel(Property p) {
+  const units = {'per_day': 'day', 'per_month': 'month', 'per_year': 'year'};
+  return units[p.priceUnit] ?? 'month';
+}
+
+/// Cards/tiles ka main price: Sale = Total Price, Rent = rent per period.
 String propertyPriceLabel(Property p) {
   if (p.listingType == 'sale') {
-    final rate = p.ratePerUnit;
-    if (rate != null && rate > 0) {
-      final unit = p.priceUnit == 'per_katha' ? 'Katha' : 'Sq.Ft.';
-      return '${formatIndianPrice(rate)}/$unit';
-    }
     final total = p.totalPrice ?? double.tryParse(p.price);
-    if (total == null || total <= 0) return 'Price on request';
-    return formatIndianPrice(total);
+    if (total != null && total > 0) return formatIndianPrice(total);
+    final rate = p.ratePerUnit;
+    if (rate != null && rate > 0) return '${formatIndianPrice(rate)}/${rateUnitLabel(p)}';
+    return 'Price on request';
   }
 
   final rent = p.rentAmount ?? double.tryParse(p.price);
   if (rent == null || rent <= 0) return 'Price on request';
-  const units = {'per_day': 'day', 'per_month': 'month', 'per_year': 'year'};
-  return '${formatIndianPrice(rent)}/${units[p.priceUnit] ?? 'month'}';
+  return '${formatIndianPrice(rent)}/${rentUnitLabel(p)}';
 }
 
-/// Sale mein rate dikh raha ho to chhota "Total ₹1.5 Cr" line; warna null.
+/// Sirf list card ki chhoti line: Sale mein total ke saath rate ho to "₹5,000/Sq.Ft."
 String? propertySecondaryPriceLabel(Property p) {
   if (p.listingType != 'sale') return null;
   final rate = p.ratePerUnit;
-  final total = p.totalPrice;
+  final total = p.totalPrice ?? double.tryParse(p.price);
   if (rate != null && rate > 0 && total != null && total > 0) {
-    return 'Total ${formatIndianPrice(total)}';
+    return '${formatIndianPrice(rate)}/${rateUnitLabel(p)}';
   }
   return null;
 }

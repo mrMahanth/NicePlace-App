@@ -127,7 +127,7 @@ class PropertyCardList extends StatelessWidget {
                         Text(
                           propertyPriceLabel(property),
                           style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700, color: Colors.green),
+                              fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.primary),
                         ),
                         if (secondary != null)
                           Text(secondary,
