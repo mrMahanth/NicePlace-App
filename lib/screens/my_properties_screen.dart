@@ -8,6 +8,7 @@ import 'post_property_basic_details_screen.dart';
 import 'post_project_bulk_units_screen.dart';
 import 'rent_tracking_screen.dart';
 import 'property_detail_screen.dart';
+import '../widgets/property_card_list.dart';
 
 class MyPropertiesScreen extends StatefulWidget {
   const MyPropertiesScreen({super.key});
@@ -233,104 +234,43 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
   }
 
   Widget _propertyCard(Property property) {
-    final coverUrl = _coverPhotoUrl(property);
     final showRejection = property.status == 'draft' && property.rejectionReason.isNotEmpty;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => PropertyDetailScreen(property: property)),
-          );
-        },
-        child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: coverUrl != null
-                  ? Image.network(
-                      coverUrl,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 80,
-                        height: 80,
-                        color: Colors.grey.shade300,
-                        child: const Icon(Icons.broken_image),
-                      ),
-                    )
-                  : Container(
-                      width: 80,
-                      height: 80,
-                      color: Colors.grey.shade300,
-                      child: const Icon(Icons.home_outlined),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    property.title.isEmpty ? "(Untitled)" : property.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(_priceLabel(property), style: const TextStyle(fontSize: 13)),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _statusColor(property.status).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _statusLabel(property.status),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _statusColor(property.status),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  if (showRejection) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      "Rejected: ${property.rejectionReason}",
-                      style: const TextStyle(fontSize: 12, color: Colors.red),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 2,
-                    runSpacing: 0,
-                    children: [
-                      if (property.status == 'live' && property.listingType != 'sale')
-                        _actionButton("Mark Rented", () => _openMarkRentedSheet(property)),
-                      if (property.status == 'live' && property.listingType != 'rent')
-                        _actionButton("Mark Sold", () => _onMarkSold(property)),
-                      if (property.status == 'rented')
-                        _actionButton("Track Rent", () => _openRentTracking(property)),
-                      _actionButton("Edit", () => _onEdit(property)),
-                      if (showRejection)
-                        _actionButton("Resubmit", () => _onResubmit(property)),
-                      _actionButton("Remove", () => _confirmDelete(property), color: Colors.red),
-                    ],
-                  ),
-                ],
+    return PropertyCardList(
+      property: property,
+      showStatus: true,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PropertyDetailScreen(property: property)),
+        );
+      },
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showRejection)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                "Rejected: ${property.rejectionReason}",
+                style: const TextStyle(fontSize: 12, color: Colors.red),
               ),
             ),
-          ],
-        ),
-      ),
+          Wrap(
+            spacing: 2,
+            children: [
+              if (property.status == 'live' && property.listingType != 'sale')
+                _actionButton("Mark Rented", () => _openMarkRentedSheet(property)),
+              if (property.status == 'live' && property.listingType != 'rent')
+                _actionButton("Mark Sold", () => _onMarkSold(property)),
+              if (property.status == 'rented')
+                _actionButton("Track Rent", () => _openRentTracking(property)),
+              _actionButton("Edit", () => _onEdit(property)),
+              if (showRejection) _actionButton("Resubmit", () => _onResubmit(property)),
+              _actionButton("Remove", () => _confirmDelete(property), color: Colors.red),
+            ],
+          ),
+        ],
       ),
     );
   }

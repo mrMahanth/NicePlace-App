@@ -28,17 +28,7 @@ class PropertyCardModern extends StatelessWidget {
     return firstImage.isNotEmpty ? firstImage.first.file : null;
   }
 
-  String get _displayPrice {
-    if (property.listingType == 'rent' && property.rentAmount != null) {
-      return '₹${property.rentAmount!.toStringAsFixed(0)}/month';
-    }
-    if (property.totalPrice != null) {
-      return formatIndianPrice(property.totalPrice!);
-    }
-    final legacy = double.tryParse(property.price);
-    if (legacy != null) return formatIndianPrice(legacy);
-    return '₹${property.price}';
-  }
+  String get _displayPrice => propertyPriceLabel(property);
 
   @override
   Widget build(BuildContext context) {

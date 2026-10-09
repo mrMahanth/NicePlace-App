@@ -27,6 +27,7 @@ import '../models/home_carousels_model.dart';
 import '../widgets/property_card_modern.dart';
 import 'login_screen.dart';
 import 'property_list_screen.dart';
+import '../widgets/property_card_list.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -65,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
   double? _nearLat;
   double? _nearLng;
 
-  double? _homeLat;  // stores GPS coords for reuse by "Near You See All"
+  double? _homeLat; // stores GPS coords for reuse by "Near You See All"
   double? _homeLng;
 
   // Current-location display state
@@ -82,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadAvatarInfo();
     _refreshLocation();
     _slidersFuture = SliderService.fetchActiveSliders();
-    _loadHomeCarousels(); // === add this — loads immediately without lat/lng ===
+    _loadHomeCarousels(); // loads immediately without lat/lng
   }
 
   @override
@@ -163,23 +164,23 @@ class _HomeScreenState extends State<HomeScreen> {
         _locationLocality = result.locality;
         _locationLoading = false;
         _locationDetected = true;
-        _homeLat = result.latitude;   // === add ===
-        _homeLng = result.longitude;  // === add ===
+        _homeLat = result.latitude;
+        _homeLng = result.longitude;
       });
-      _loadHomeCarousels(lat: result.latitude, lng: result.longitude); // === add ===
+      _loadHomeCarousels(lat: result.latitude, lng: result.longitude);
     } catch (e) {
-        if (!mounted) return;
-        setState(() {
-          _locationCity = 'Set location';
-          _locationLocality = null;
-          _locationLoading = false;
-          _locationDetected = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        _locationCity = 'Set location';
+        _locationLocality = null;
+        _locationLoading = false;
+        _locationDetected = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     }
+  }
 
   Future<void> _openLocationPicker() async {
     final picked = await showLocationPickerSheet(
@@ -487,29 +488,29 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (innerContext) => Stack(
                 clipBehavior: Clip.none,
                 children: [
-                GestureDetector(
-                  onTap: () async {
-                    if (_avatarLoggedIn) {
-                      Scaffold.of(innerContext).openEndDrawer();
-                    } else {
-                      final result = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      );
-                      if (result == true) _loadAvatarInfo();
-                    }
-                  },
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white,
-                    backgroundImage: _avatarPhoto != null
-                        ? CachedNetworkImageProvider(_avatarPhoto!)
-                        : null,
-                    child: _avatarPhoto == null
-                        ? const Icon(Icons.person, color: AppColors.primary)
-                        : null,
+                  GestureDetector(
+                    onTap: () async {
+                      if (_avatarLoggedIn) {
+                        Scaffold.of(innerContext).openEndDrawer();
+                      } else {
+                        final result = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        );
+                        if (result == true) _loadAvatarInfo();
+                      }
+                    },
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white,
+                      backgroundImage: _avatarPhoto != null
+                          ? CachedNetworkImageProvider(_avatarPhoto!)
+                          : null,
+                      child: _avatarPhoto == null
+                          ? const Icon(Icons.person, color: AppColors.primary)
+                          : null,
+                    ),
                   ),
-                ),
                   if (_avatarLoggedIn && _avatarTag != null)
                     Positioned(
                       bottom: -1,
@@ -557,217 +558,173 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: _onPullToRefresh,
         child: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        cacheExtent: 500, // pre-renders items just outside the screen for smoother scroll
-        slivers: [
-          // === Replace both SliverToBoxAdapter blocks with this ===
-          SliverAppBar(
-            backgroundColor: AppColors.searchStripBackground,
-            pinned: false,
-            floating: true,
-            snap: true,
-            elevation: 0,
-            toolbarHeight: 64, // search strip's own height, NOT the slider's
-            automaticallyImplyLeading: false,
-            actions: const [SizedBox.shrink()],
-            flexibleSpace: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: GestureDetector(
-                  onTap: _openSearchFilterScreen,
-                  child: AbsorbPointer(
-                    child: AnimatedHintSearchField(
-                      controller: _searchController,
-                      hints: _searchHints,
-                      hasActiveFilters: _hasActiveFilters,
-                      backgroundColor: AppColors.background,
-                      borderColor: null,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          cacheExtent: 500, // pre-renders items just outside the screen for smoother scroll
+          slivers: [
+            SliverAppBar(
+              backgroundColor: AppColors.searchStripBackground,
+              pinned: false,
+              floating: true,
+              snap: true,
+              elevation: 0,
+              toolbarHeight: 64, // search strip's own height, NOT the slider's
+              automaticallyImplyLeading: false,
+              actions: const [SizedBox.shrink()],
+              flexibleSpace: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: GestureDetector(
+                    onTap: _openSearchFilterScreen,
+                    child: AbsorbPointer(
+                      child: AnimatedHintSearchField(
+                        controller: _searchController,
+                        hints: _searchHints,
+                        hasActiveFilters: _hasActiveFilters,
+                        backgroundColor: AppColors.background,
+                        borderColor: null,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: FutureBuilder<List<SliderModel>>(
-              future: _slidersFuture,
-              builder: (context, snapshot) {
-                final sliders = snapshot.data ?? [];
-                return HeroSliderBanner(
-                  sliders: sliders,
-                  onSliderTap: _handleSliderTap,
-                );
-              },
+            SliverToBoxAdapter(
+              child: FutureBuilder<List<SliderModel>>(
+                future: _slidersFuture,
+                builder: (context, snapshot) {
+                  final sliders = snapshot.data ?? [];
+                  return HeroSliderBanner(
+                    sliders: sliders,
+                    onSliderTap: _handleSliderTap,
+                  );
+                },
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: FutureBuilder<HomeCarouselsResponse>(
-              future: _homeCarouselsFuture,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox.shrink();
-                final data = snapshot.data!;
+            SliverToBoxAdapter(
+              child: FutureBuilder<HomeCarouselsResponse>(
+                future: _homeCarouselsFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox.shrink();
+                  final data = snapshot.data!;
 
-                return Column(
-                  children: [
-                    _buildCarouselSection(
-                      title: '⭐ Featured Properties',
-                      properties: data.featured,
-                      onSeeAll: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PropertyListScreen(
-                              title: 'Featured Properties',
-                              featured: true,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildCarouselSection(
-                      title: '📍 Properties Near You',
-                      properties: data.nearYou,
-                      onSeeAll: (_homeLat != null && _homeLng != null)
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => PropertyListScreen(
-                                    title: 'Properties Near You',
-                                    nearLat: _homeLat,
-                                    nearLng: _homeLng,
-                                  ),
-                                ),
-                              );
-                            }
-                          : null,
-                    ),
-                    _buildCarouselSection(
-                      title: '🆕 Recently Added',
-                      properties: data.recentlyAdded,
-                      onSeeAll: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PropertyListScreen(
-                              title: 'Recently Added',
-                              ordering: 'recent',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    ...data.byType.map(
-                      (typeCarousel) => _buildCarouselSection(
-                        title: typeCarousel.propertyTypeName,
-                        properties: typeCarousel.properties,
+                  return Column(
+                    children: [
+                      _buildCarouselSection(
+                        title: '⭐ Featured Properties',
+                        properties: data.featured,
                         onSeeAll: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => PropertyListScreen(
-                                title: typeCarousel.propertyTypeName,
-                                propertyTypeId: typeCarousel.propertyTypeId,
+                              builder: (context) => const PropertyListScreen(
+                                title: 'Featured Properties',
+                                featured: true,
                               ),
                             ),
                           );
                         },
                       ),
-                    ),
-                  ],
-                );
-              },
+                      _buildCarouselSection(
+                        title: '📍 Properties Near You',
+                        properties: data.nearYou,
+                        onSeeAll: (_homeLat != null && _homeLng != null)
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PropertyListScreen(
+                                      title: 'Properties Near You',
+                                      nearLat: _homeLat,
+                                      nearLng: _homeLng,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
+                      _buildCarouselSection(
+                        title: '🆕 Recently Added',
+                        properties: data.recentlyAdded,
+                        onSeeAll: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PropertyListScreen(
+                                title: 'Recently Added',
+                                ordering: 'recent',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      ...data.byType.map(
+                        (typeCarousel) => _buildCarouselSection(
+                          title: typeCarousel.propertyTypeName,
+                          properties: typeCarousel.properties,
+                          onSeeAll: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PropertyListScreen(
+                                  title: typeCarousel.propertyTypeName,
+                                  propertyTypeId: typeCarousel.propertyTypeId,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-          FutureBuilder<List<Property>>(
-            future: _propertiesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              if (snapshot.hasError) {
-                return SliverFillRemaining(
-                  child: Center(child: Text("Error: ${snapshot.error}")),
-                );
-              }
-              final properties = snapshot.data ?? [];
-              if (properties.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(
-                    child: Text("No properties found. Try adjusting filters."),
-                  ),
-                );
-              }
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final property = properties[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                      child: InkWell(
+            FutureBuilder<List<Property>>(
+              future: _propertiesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SliverFillRemaining(
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return SliverFillRemaining(
+                    child: Center(child: Text("Error: ${snapshot.error}")),
+                  );
+                }
+                final properties = snapshot.data ?? [];
+                if (properties.isEmpty) {
+                  return const SliverFillRemaining(
+                    child: Center(
+                      child: Text("No properties found. Try adjusting filters."),
+                    ),
+                  );
+                }
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final property = properties[index];
+                      return PropertyCardList(
+                        property: property,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (context) =>
-                                    PropertyDetailScreen(property: property)),
+                              builder: (context) => PropertyDetailScreen(property: property),
+                            ),
                           );
                         },
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ListTile(
-                              leading: property.media.any((m) => m.mediaType == 'image')
-                                  ? CachedNetworkImage(
-                                      imageUrl: property.media.firstWhere((m) => m.mediaType == 'image').file!,
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
-                                        width: 60,
-                                        height: 60,
-                                        color: AppColors.cardBorder,
-                                      ),
-                                      errorWidget: (context, url, error) =>
-                                          const Icon(Icons.broken_image, size: 40),
-                                    )
-                                  : const Icon(Icons.home, size: 40),
-                              title: Text(property.title),
-                              subtitle: Text(
-                                  "${property.locality}, ${property.city}\n₹${property.price}"),
-                              isThreeLine: true,
-                            ),
-                            if (property.tags.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 2, right: 2, bottom: 10),
-                                child: Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: property.tags
-                                      .map((t) => TagChip(
-                                            name: t.name,
-                                            badgeIcon: t.badgeIcon,
-                                            badgeColor: t.badgeColor,
-                                          ))
-                                      .toList(),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                  childCount: properties.length,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+                      );
+                    },
+                    childCount: properties.length,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
