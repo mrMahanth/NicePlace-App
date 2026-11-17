@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/property_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/price_formatter.dart';
+import 'property_action_icons.dart';
 
 /// A vertical property card with the cover image, a bottom gradient overlay
 /// showing price + locality, small badges in the top corners, and a strip
@@ -11,14 +12,24 @@ import '../utils/price_formatter.dart';
 class PropertyCardModern extends StatelessWidget {
   final Property property;
   final VoidCallback onTap;
-  final double width;
+  final double? width;
 
   const PropertyCardModern({
     super.key,
     required this.property,
     required this.onTap,
-    this.width = 220,
+    this.width,
   });
+
+  // === add these two static helpers ===
+  static double widthFor(BuildContext context) => MediaQuery.of(context).size.width / 1.5;
+
+  static double heightFor(BuildContext context) {
+    final w = widthFor(context);
+    final imageHeight = w * 3 / 4; // AspectRatio(4/3) jo image ke liye use ho raha hai
+    return imageHeight + 76; // + title row + attributes strip + thoda breathing room
+  }
+  // === end add ===
 
   String? get _coverImageUrl {
     if (property.media.isEmpty) return null;
@@ -34,11 +45,12 @@ class PropertyCardModern extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageUrl = _coverImageUrl;
     final cardAttributes = property.attributeValues.where((a) => a.showOnCard).take(3).toList();
+    final cardWidth = width ?? widthFor(context); // === add this line ===
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: width,
+        width: cardWidth, // === changed: 'width' se 'cardWidth' kiya ===
         margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -101,6 +113,23 @@ class PropertyCardModern extends StatelessWidget {
                       child: Text(
                         property.listingType == 'rent' ? 'For Rent' : 'For Sale',
                         style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      ),
+                    ),
+                  ),
+
+                  // Action icons - right edge, vertically centered. Positioned.fill +
+                  // Align (fixed top/bottom ki jagah) taaki icon column apni content
+                  // ke hisaab se size ho, forced-height overflow na ho.
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: PropertyActionIcons(
+                          property: property,
+                          direction: Axis.vertical,
+                          onImage: true,
+                        ),
                       ),
                     ),
                   ),

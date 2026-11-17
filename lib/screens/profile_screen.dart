@@ -12,6 +12,7 @@ import 'tags/tags_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'photo_viewer_screen.dart';
 import '../widgets/tag_badge.dart';
+import '../services/property_action_store.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -115,6 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _handleLogout() async {
     await ApiService.logout();
+    PropertyActionStore.instance.clear();
     widget.onLoggedOut?.call();
     if (mounted) Navigator.of(context).pop(); // close the drawer, back to Home
   }

@@ -13,6 +13,7 @@ class PropertyListScreen extends StatefulWidget {
   final String? ordering;
   final double? nearLat;
   final double? nearLng;
+  final int? categoryId;
 
   const PropertyListScreen({
     super.key,
@@ -22,6 +23,7 @@ class PropertyListScreen extends StatefulWidget {
     this.ordering,
     this.nearLat,
     this.nearLng,
+    this.categoryId,
   });
 
   @override
@@ -40,6 +42,7 @@ class _PropertyListScreenState extends State<PropertyListScreen> {
       ordering: widget.ordering,
       nearLat: widget.nearLat,
       nearLng: widget.nearLng,
+      categoryId: widget.categoryId,
     );
   }
 

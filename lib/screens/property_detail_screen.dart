@@ -11,6 +11,7 @@ import '../services/user_profile_service.dart';
 import '../utils/auth_guard.dart';
 import '../widgets/tag_badge.dart';
 import '../widgets/property_price_block.dart';
+import '../widgets/property_action_icons.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final Property property;
@@ -540,7 +541,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                   if (_buildStatusBadge(_property) != null) _buildStatusBadge(_property)!,
                   PropertyPriceBlock(property: _property),
                   const SizedBox(height: 12),
-                  Wrap(
+           Wrap(
                     spacing: 8,
                     children: [
                       Chip(label: Text(_property.propertyType)),
@@ -549,7 +550,9 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  PropertyActionIcons(property: _property), // === add this line ===
+                  const SizedBox(height: 12),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

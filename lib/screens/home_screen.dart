@@ -311,9 +311,23 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         break;
 
+      case 'category':
+        if (slider.destinationCategoryId == null) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PropertyListScreen(
+              title: (slider.destinationCategoryName?.isNotEmpty ?? false)
+                  ? slider.destinationCategoryName!
+                  : 'Properties',
+              categoryId: slider.destinationCategoryId,
+            ),
+          ),
+        );
+        break;
+
       case 'project':
       case 'agent_profile':
-      case 'category':
         // TODO: these still need screens/wiring that don't exist in the app
         // yet (Project detail screen, an agent profile screen, and
         // category-based browsing support in PropertyService). Graceful
@@ -372,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 240,
+            height: PropertyCardModern.heightFor(context),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.only(left: 2, right: 6),
@@ -380,6 +394,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemBuilder: (context, index) {
                 final property = properties[index];
                 return PropertyCardModern(
+                  key: ValueKey('carousel_card_${property.id}'), // === add this ===
                   property: property,
                   onTap: () {
                     Navigator.push(

@@ -16,6 +16,7 @@ class PropertyService {
     String? ordering,
     double? nearLat,
     double? nearLng,
+    int? categoryId,
   }) async {
     final queryParams = <String, String>{};
     if (city != null && city.isNotEmpty) queryParams['city'] = city;
@@ -28,6 +29,7 @@ class PropertyService {
     if (ordering != null) queryParams['ordering'] = ordering;
     if (nearLat != null) queryParams['lat'] = nearLat.toString();
     if (nearLng != null) queryParams['lng'] = nearLng.toString();
+    if (categoryId != null) queryParams['category'] = categoryId.toString();
 
     final url = Uri.parse("${ApiService.baseUrl}/properties/")
         .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
@@ -555,6 +557,25 @@ class PropertyService {
     }
   }
 
+  // ---------- Favourites / Saved / Interested lists ----------
+  static Future<List<Property>> fetchMyFavorites() => _fetchMyActionList('my_favorites');
+  static Future<List<Property>> fetchMySaved() => _fetchMyActionList('my_saved');
+  static Future<List<Property>> fetchMyInterested() => _fetchMyActionList('my_interested');
+
+  static Future<List<Property>> _fetchMyActionList(String actionEndpoint) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$actionEndpoint/");
+      return http.get(url, headers: {"Authorization": "Bearer $token"});
+    });
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.map((j) => Property.fromJson(j)).toList();
+    } else {
+      throw Exception("Failed to load list");
+    }
+  }
+
   // ---------- Property/Unit delete karna (soft-delete, backend handle karta hai) ----------
   static Future<Map<String, dynamic>> deleteProperty(int propertyId) async {
     final response = await ApiService.authorizedRequest((token) {
@@ -620,6 +641,28 @@ class PropertyService {
 
     if (response.statusCode == 200) {
       return {"success": true};
+    } else {
+      return {"success": false, "error": response.body};
+    }
+  }
+  static Future<Map<String, dynamic>> togglePropertyAction({
+    required int propertyId,
+    required String actionType,
+  }) async {
+    final response = await ApiService.authorizedRequest((token) {
+      final url = Uri.parse("${ApiService.baseUrl}/properties/$propertyId/toggle_action/");
+      return http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"action_type": actionType}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return {"success": true, "data": jsonDecode(response.body)};
     } else {
       return {"success": false, "error": response.body};
     }

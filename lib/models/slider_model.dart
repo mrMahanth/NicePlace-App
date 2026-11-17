@@ -9,6 +9,7 @@ class SliderModel {
   final int? destinationProjectId;
   final int? destinationPropertyTypeId;
   final int? destinationCategoryId;
+  final String? destinationCategoryName;
   final String? destinationUsername;
   final String? internalPageAppScreenKey;
   final String? searchLocality;
@@ -26,6 +27,7 @@ class SliderModel {
     this.destinationProjectId,
     this.destinationPropertyTypeId,
     this.destinationCategoryId,
+    this.destinationCategoryName,
     this.destinationUsername,
     this.internalPageAppScreenKey,
     this.searchLocality,
@@ -45,6 +47,7 @@ class SliderModel {
       destinationProjectId: json['destination_project'],
       destinationPropertyTypeId: json['destination_property_type'],
       destinationCategoryId: json['destination_category'],
+      destinationCategoryName: json['destination_category_name'],
       destinationUsername: json['destination_username'],
       internalPageAppScreenKey: json['internal_page_app_screen_key'],
       searchLocality: json['search_locality'],

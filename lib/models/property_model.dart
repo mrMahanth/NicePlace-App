@@ -145,6 +145,9 @@ class Property {
 
   final List<PropertyMedia> media;
   final List<PropertyAttribute> attributeValues;
+  final bool isFavorited;
+  final bool isSaved;
+  final bool isInterested;
   final List<PropertyTagInfo> tags;
   final List<NearbyPlaceModel> nearbyPlaces;
 
@@ -188,6 +191,9 @@ class Property {
     this.bookingPriceNegotiable = false,
     required this.media,
     required this.attributeValues,
+    this.isFavorited = false,
+    this.isSaved = false,
+    this.isInterested = false,
     required this.tags,
     this.nearbyPlaces = const [],
   });
@@ -237,6 +243,9 @@ class Property {
       attributeValues: (json['attribute_values'] as List<dynamic>? ?? [])
           .map((a) => PropertyAttribute.fromJson(a))
           .toList(),
+      isFavorited: json['is_favorited'] ?? false,
+      isSaved: json['is_saved'] ?? false,
+      isInterested: json['is_interested'] ?? false,
       tags: (json['tags'] as List<dynamic>? ?? [])
           .map((t) => PropertyTagInfo.fromJson(t))
           .toList(),
