@@ -7,6 +7,7 @@ class SliderModel {
   final String? externalUrl;
   final int? destinationPropertyId;
   final int? destinationProjectId;
+  final String? destinationProjectName;
   final int? destinationPropertyTypeId;
   final int? destinationCategoryId;
   final String? destinationCategoryName;
@@ -25,6 +26,7 @@ class SliderModel {
     this.externalUrl,
     this.destinationPropertyId,
     this.destinationProjectId,
+    this.destinationProjectName,
     this.destinationPropertyTypeId,
     this.destinationCategoryId,
     this.destinationCategoryName,
@@ -45,6 +47,7 @@ class SliderModel {
       externalUrl: json['external_url'],
       destinationPropertyId: json['destination_property'],
       destinationProjectId: json['destination_project'],
+      destinationProjectName: json['destination_project_name'],
       destinationPropertyTypeId: json['destination_property_type'],
       destinationCategoryId: json['destination_category'],
       destinationCategoryName: json['destination_category_name'],

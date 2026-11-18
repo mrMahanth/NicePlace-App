@@ -53,6 +53,24 @@ class ProjectService {
     }
   }
 
+  // ---------- Public project (guest bhi dekh sakta hai, sirf approved projects) ----------
+  static Future<Map<String, dynamic>> fetchPublicProject(int projectId) async {
+    try {
+      final url = Uri.parse("${ApiService.baseUrl}/projects/$projectId/public/");
+      final response = await ApiService.getWithRetry(url);
+
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      } else if (response.statusCode == 404) {
+        return {"success": false, "error": "This project is not available right now."};
+      } else {
+        return {"success": false, "error": "Could not load project. Please try again."};
+      }
+    } catch (e) {
+      return {"success": false, "error": "Network problem. Please check your internet and try again."};
+    }
+  }
+
   // ---------- Project delete karna (sirf draft projects ke paas units nahi hote, safe hai) ----------
   static Future<Map<String, dynamic>> deleteProject(int projectId) async {
     final response = await ApiService.authorizedRequest((token) {

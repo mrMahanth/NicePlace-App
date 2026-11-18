@@ -7,26 +7,35 @@ import '../screens/interested_properties_screen.dart';
 class _QuickLink {
   final IconData icon;
   final String label;
+  final Color color;
   final WidgetBuilder screenBuilder;
-  const _QuickLink({required this.icon, required this.label, required this.screenBuilder});
+  const _QuickLink({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.screenBuilder,
+  });
 }
 
 // To add another shortcut later, just add another entry here - the grid
 // below lays these out automatically, no other code needs to change.
 final List<_QuickLink> _quickLinks = [
   _QuickLink(
-    icon: Icons.favorite_border,
+    icon: Icons.favorite,
     label: 'Favourites',
+    color: Colors.red,
     screenBuilder: (_) => const FavouritesScreen(),
   ),
   _QuickLink(
-    icon: Icons.bookmark_border,
+    icon: Icons.bookmark,
     label: 'Saved',
+    color: const Color(0xFFEC4899), // pink, same as the save icon on cards
     screenBuilder: (_) => const SavedPropertiesScreen(),
   ),
   _QuickLink(
-    icon: Icons.thumb_up_outlined,
+    icon: Icons.thumb_up,
     label: 'Interested',
+    color: const Color(0xFF1877F2), // facebook blue, same as the interested icon on cards
     screenBuilder: (_) => const InterestedPropertiesScreen(),
   ),
 ];
@@ -74,16 +83,23 @@ Future<void> showQuickLinksSheet(BuildContext context) {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.background,
+                      color: link.color.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.cardBorder),
+                      border: Border.all(color: link.color.withValues(alpha: 0.45)),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(link.icon, color: AppColors.accent, size: 26),
+                        Icon(link.icon, color: link.color, size: 28),
                         const SizedBox(height: 8),
-                        Text(link.label, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                        Text(
+                          link.label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                       ],
                     ),
                   ),

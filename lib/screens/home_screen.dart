@@ -27,6 +27,8 @@ import '../models/home_carousels_model.dart';
 import '../widgets/property_card_modern.dart';
 import 'login_screen.dart';
 import 'property_list_screen.dart';
+import 'project_detail_screen.dart';
+import 'public_profile_screen.dart';
 import '../widgets/property_card_list.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -327,16 +329,32 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
 
       case 'project':
+        final projectId = slider.destinationProjectId;
+        if (projectId == null) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProjectDetailScreen(
+              projectId: projectId,
+              projectName: slider.destinationProjectName,
+            ),
+          ),
+        );
+        break;
+
       case 'agent_profile':
-        // TODO: these still need screens/wiring that don't exist in the app
-        // yet (Project detail screen, an agent profile screen, and
-        // category-based browsing support in PropertyService). Graceful
-        // no-op for now instead of crashing.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("This link isn't supported in the app yet.")),
-          );
-        }
+        final agentUsername = slider.destinationUsername?.trim();
+        if (agentUsername == null || agentUsername.isEmpty) return;
+        // Backend public profile ke liye login maangta hai
+        final loggedInForProfile = await AuthGuard.ensureLoggedIn(
+          context,
+          message: "Please login to view this profile",
+        );
+        if (!loggedInForProfile || !mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PublicProfileScreen(username: agentUsername)),
+        );
         break;
 
       case 'none':
