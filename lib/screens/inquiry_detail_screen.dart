@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/inquiry_model.dart';
 import '../services/inquiry_service.dart';
 import '../services/api_service.dart';
+import '../utils/auto_refresh.dart';
 
 class InquiryDetailScreen extends StatefulWidget {
   final int inquiryId;
@@ -21,16 +22,40 @@ class _InquiryDetailScreenState extends State<InquiryDetailScreen> {
 
   final TextEditingController messageController = TextEditingController();
 
+  late final AutoRefresher _auto;
+
   @override
   void initState() {
     super.initState();
+    _auto = AutoRefresher(onRefresh: _silentLoad, seconds: 5);
     loadDetail();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _auto.start(context);
+  }
+
+  @override
   void dispose() {
+    _auto.dispose();
     messageController.dispose();
     super.dispose();
+  }
+
+  // Chat refresh: messageController ko haath nahi lagate, isliye typed text safe rehta hai
+  Future<void> _silentLoad() async {
+    currentUserId ??= await ApiService.getCurrentUserId();
+    final result = await InquiryService.fetchInquiryDetail(widget.inquiryId);
+    if (!mounted) return;
+    if (result['success']) {
+      setState(() {
+        inquiry = result['data'];
+        errorMessage = '';
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> loadDetail() async {
@@ -72,7 +97,7 @@ class _InquiryDetailScreenState extends State<InquiryDetailScreen> {
 
     if (result['success']) {
       messageController.clear();
-      loadDetail(); // refresh karke naya message list mein dikhao
+      _silentLoad(); // spinner ke bina naya message dikhao
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Message bhejne mein error. Login check karo.')),

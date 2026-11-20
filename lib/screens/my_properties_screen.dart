@@ -9,6 +9,7 @@ import 'post_project_bulk_units_screen.dart';
 import 'rent_tracking_screen.dart';
 import 'property_detail_screen.dart';
 import '../widgets/property_card_list.dart';
+import '../utils/auto_refresh.dart';
 
 class MyPropertiesScreen extends StatefulWidget {
   const MyPropertiesScreen({super.key});
@@ -41,10 +42,36 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
     'total': '',
   };
 
+  late final AutoRefresher _auto;
+
   @override
   void initState() {
     super.initState();
+    _auto = AutoRefresher(onRefresh: _silentLoad, seconds: 10);
     _loadProperties();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _auto.start(context);
+  }
+
+  @override
+  void dispose() {
+    _auto.dispose();
+    super.dispose();
+  }
+
+  // Listing ka status (approve / reject / live) website par badle to yahan khud badlega
+  Future<void> _silentLoad() async {
+    final properties = await PropertyService.fetchMyProperties();
+    if (!mounted) return;
+    setState(() {
+      _properties = properties;
+      _loadError = null;
+      _isLoading = false;
+    });
   }
 
   Future<void> _loadProperties() async {

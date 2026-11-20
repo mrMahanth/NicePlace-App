@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/rental_agreement_model.dart';
 import '../services/tenancy_service.dart';
+import '../utils/auto_refresh.dart';
 
 class RentTrackingScreen extends StatefulWidget {
   final int propertyId;
@@ -29,10 +30,42 @@ class _RentTrackingScreenState extends State<RentTrackingScreen> {
   bool _isEndingTenancy = false;
   String? _error;
 
+  late final AutoRefresher _auto;
+
   @override
   void initState() {
     super.initState();
+    _auto = AutoRefresher(onRefresh: _silentLoad, seconds: 15);
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _auto.start(context);
+  }
+
+  @override
+  void dispose() {
+    _auto.dispose();
+    super.dispose();
+  }
+
+  Future<void> _silentLoad() async {
+    final result = await TenancyService.fetchCurrentAgreement(widget.propertyId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        _agreement = result['data'] as RentalAgreement;
+        _error = null;
+      });
+    }
+    final historyResult = await TenancyService.fetchPropertyHistory(widget.propertyId);
+    if (!mounted) return;
+    if (historyResult['success'] == true) {
+      final all = historyResult['data'] as List<RentalAgreement>;
+      setState(() => _history = all.where((a) => !a.isActive).toList());
+    }
   }
 
   Future<void> _load() async {

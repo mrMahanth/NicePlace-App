@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/inquiry_model.dart';
 import '../services/inquiry_service.dart';
 import 'inquiry_detail_screen.dart';
+import '../utils/auto_refresh.dart';
 
 class InquiriesListScreen extends StatefulWidget {
   const InquiriesListScreen({super.key});
@@ -15,10 +16,37 @@ class _InquiriesListScreenState extends State<InquiriesListScreen> {
   String errorMessage = '';
   List<Inquiry> inquiries = [];
 
+  late final AutoRefresher _auto;
+
   @override
   void initState() {
     super.initState();
+    _auto = AutoRefresher(onRefresh: _silentLoad, seconds: 10);
     loadInquiries();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _auto.start(context);
+  }
+
+  @override
+  void dispose() {
+    _auto.dispose();
+    super.dispose();
+  }
+
+  Future<void> _silentLoad() async {
+    final result = await InquiryService.fetchInquiries();
+    if (!mounted) return;
+    if (result['success']) {
+      setState(() {
+        inquiries = result['data'];
+        errorMessage = '';
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> loadInquiries() async {
@@ -99,8 +127,7 @@ class _InquiriesListScreenState extends State<InquiriesListScreen> {
                 builder: (context) => InquiryDetailScreen(inquiryId: inquiry.id),
               ),
             );
-            // Wapas aane par list refresh kar do (naya message ho sakta hai)
-            loadInquiries();
+            // Wapas aane par AutoRefresher khud silent refresh kar deta hai
           },
         );
       },

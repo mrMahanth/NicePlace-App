@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/notification_model.dart';
 import '../services/notification_service.dart';
+import 'inquiry_detail_screen.dart';
+import '../utils/auto_refresh.dart';
 
 class NotificationsListScreen extends StatefulWidget {
   const NotificationsListScreen({super.key});
@@ -15,10 +17,38 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   String errorMessage = '';
   List<AppNotification> notifications = [];
 
+  late final AutoRefresher _auto;
+
   @override
   void initState() {
     super.initState();
+    _auto = AutoRefresher(onRefresh: _silentLoad, seconds: 10);
     loadNotifications();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _auto.start(context);
+  }
+
+  @override
+  void dispose() {
+    _auto.dispose();
+    super.dispose();
+  }
+
+  // Bina spinner ke chup-chaap naya data lao
+  Future<void> _silentLoad() async {
+    final result = await NotificationService.fetchNotifications();
+    if (!mounted) return;
+    if (result['success']) {
+      setState(() {
+        notifications = result['data'];
+        errorMessage = '';
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> loadNotifications() async {
@@ -64,6 +94,58 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         });
       }
     }
+  }
+
+  // Tap par poora message dikhao, aur chat se judi ho to "Open chat" button
+  void _showDetail(AppNotification n) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(n.title,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Flexible(child: SingleChildScrollView(child: Text(n.message))),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                if (n.relatedInquiry != null)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                InquiryDetailScreen(inquiryId: n.relatedInquiry!),
+                          ),
+                        );
+                      },
+                      child: const Text('Open chat'),
+                    ),
+                  ),
+                if (n.relatedInquiry != null) const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('Close'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -125,7 +207,11 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          onTap: () => handleTap(notification),
+          onTap: () async {
+            await handleTap(notification);
+            if (!mounted) return;
+            _showDetail(notification);
+          },
         );
       },
     );
